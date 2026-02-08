@@ -6,8 +6,8 @@ set -euo pipefail
 # Fixes:
 # 1) Robust user/home detection (no eval/tilde issues)
 # 2) Adds python3-setuptools at apt level
-# 3) Pre-installs CLIP with --no-build-isolation to avoid
-#    "ModuleNotFoundError: No module named 'pkg_resources'"
+# 3) Fixes CLIP install by patching launch_utils.py to use:
+#    --no-build-isolation (and --no-use-pep517) to avoid pkg_resources error
 # 4) Generates run_sd.sh + remove.sh using same robust home logic
 # ============================================================
 
@@ -335,14 +335,6 @@ fi
 pip install -r requirements.txt
 
 # -----------------------------
-# FIX: Pre-install CLIP (avoids pkg_resources build failure)
-# -----------------------------
-progress_bar "Pre-installing CLIP (workaround for pkg_resources build error)..."
-python -m pip install --upgrade pip setuptools wheel >/dev/null
-python -m pip install --no-build-isolation \
-  "git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1" || true
-
-# -----------------------------
 # Download the model files (README: comment out MODEL lines to disable)
 # -----------------------------
 progress_bar "Downloading the model files..."
@@ -356,7 +348,7 @@ download_if_missing "$MODEL1_URL" "$MODEL1_PATH"
 download_if_missing "$MODEL2_URL" "$MODEL2_PATH"
 
 # -----------------------------
-# Create the unified run_sd.sh script (robust HOME + CLIP precheck)
+# Create the unified run_sd.sh script (robust HOME)
 # -----------------------------
 progress_bar "Creating run_sd.sh script..."
 cat <<'EOF' > "$USER_HOME/run_sd.sh"
@@ -426,12 +418,6 @@ case "$choice" in
     echo -e "${GREEN}Running with internet connection (LAN access)...${NC}"
     source "$VENV_DIR/bin/activate"
     cd "$WEBUI_DIR" || exit 1
-
-    # Ensure CLIP doesn't fail due to build isolation / pkg_resources
-    python -m pip install --upgrade pip setuptools wheel >/dev/null
-    python -m pip install --no-build-isolation \
-      "git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1" || true
-
     DEFAULT_LOCAL_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
     [ -n "${DEFAULT_LOCAL_IP:-}" ] || DEFAULT_LOCAL_IP="127.0.0.1"
     echo -e "Access it at: http://$DEFAULT_LOCAL_IP:7860"
@@ -442,11 +428,6 @@ case "$choice" in
     echo -e "${GREEN}Running completely offline (localhost only)...${NC}"
     source "$VENV_DIR/bin/activate"
     cd "$WEBUI_DIR" || exit 1
-
-    python -m pip install --upgrade pip setuptools wheel >/dev/null
-    python -m pip install --no-build-isolation \
-      "git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1" || true
-
     echo -e "Access it at: http://127.0.0.1:7860"
     python launch.py --skip-torch-cuda-test --no-half --listen --skip-install
     cleanup
@@ -519,14 +500,27 @@ chmod +x "$USER_HOME/remove.sh"
 
 # -----------------------------
 # Patch: repair broken repo URL in launch_utils.py
+# + Patch: fix CLIP install flags (no build isolation / no pep517)
 # -----------------------------
 echo "Patch to repair broken repo pre-loded from automatic1111 offical GitHub repo."
 cd "$USER_HOME/stable-diffusion-webui" || exit 1
 cp -a modules/launch_utils.py "modules/launch_utils.py.bak.$(date +%F_%H%M%S)"
+
+# Your existing repo URL patch
 grep -n "stable_diffusion_repo" modules/launch_utils.py >/dev/null 2>&1
 grep -n "stable_diffusion_commit_hash" modules/launch_utils.py >/dev/null 2>&1
 sed -i 's#https://github.com/Stability-AI/stablediffusion.git#https://github.com/comp6062/Stability-AI-stablediffusion.git#g' modules/launch_utils.py
 rm -rf repositories/stable-diffusion-stability-ai
+
+# NEW: CLIP install patch to prevent pkg_resources failure
+# (A1111 calls: run_pip(f"install {clip_package}", "clip"))
+if grep -n 'run_pip(f"install {clip_package}", "clip")' modules/launch_utils.py >/dev/null 2>&1; then
+  sed -i 's/run_pip(f"install {clip_package}", "clip")/run_pip(f"install --no-build-isolation --no-use-pep517 {clip_package}", "clip")/g' modules/launch_utils.py
+  echo "Patched CLIP install to use --no-build-isolation --no-use-pep517"
+else
+  echo "WARNING: Could not find expected CLIP install line to patch. CLIP may still fail at runtime."
+fi
+
 echo "End Patch"
 
 # Installer succeeded; don't clean up.
