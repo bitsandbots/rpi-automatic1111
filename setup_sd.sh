@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# ============================================================
+# install_sd.sh  (RPi5 + RPi4)
+# Fixes:
+# 1) Robust user/home detection (no eval/tilde issues)
+# 2) Adds python3-setuptools at apt level
+# 3) Pre-installs CLIP with --no-build-isolation to avoid
+#    "ModuleNotFoundError: No module named 'pkg_resources'"
+# 4) Generates run_sd.sh + remove.sh using same robust home logic
+# ============================================================
+
 # -----------------------------
 # Pretty output colors
 # -----------------------------
@@ -15,14 +25,12 @@ progress_bar() {
 }
 
 # -----------------------------
-# Resolve target user/home robustly (works on RPi4/RPi5, sudo/non-sudo)
+# Resolve target user/home robustly (sudo/non-sudo safe)
 # -----------------------------
 get_target_user() {
-  # If run with sudo, prefer the invoking user
   if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
     echo "$SUDO_USER"
   else
-    # fallback
     id -un
   fi
 }
@@ -35,7 +43,6 @@ get_home_for_user() {
     echo "$h"
     return 0
   fi
-  # final fallback
   echo "${HOME:-/home/$u}"
 }
 
@@ -96,7 +103,9 @@ sudo apt update && sudo apt upgrade -y
 # Install dependencies
 # -----------------------------
 progress_bar "Installing necessary dependencies..."
-sudo apt install -y python3 python3-pip python3-venv git libgl1 libglib2.0-0 wget curl
+sudo apt install -y \
+  python3 python3-pip python3-venv python3-setuptools \
+  git libgl1 libglib2.0-0 wget curl
 
 # -----------------------------
 # Gate unsupported architectures
@@ -119,10 +128,7 @@ need_cmd curl
 need_cmd wget
 
 # -----------------------------
-# Python selection:
-# - Bookworm: system python3 (typically 3.11) -> venv normally
-# - Trixie: system python3 (typically >=3.12/3.13) -> venv using uv + Python 3.11
-# - Also: if system python is >= 3.12 on any distro -> use uv + Python 3.11
+# Python version detection
 # -----------------------------
 PY_MAJOR="$(python3 -c 'import sys; print(sys.version_info.major)')"
 PY_MINOR="$(python3 -c 'import sys; print(sys.version_info.minor)')"
@@ -155,7 +161,6 @@ ensure_uv() {
 
   progress_bar "Installing uv (local Python manager) for Trixie compatibility..."
   mkdir -p "$USER_HOME/.local/bin"
-
   curl -fsSL https://astral.sh/uv/install.sh | sh
 
   if UV_BIN="$(find_uv)"; then
@@ -170,6 +175,7 @@ ensure_uv() {
 create_venv() {
   rm -rf "$VENV_DIR" 2>/dev/null || true
 
+  # Use uv+Python3.11 on Trixie OR if system python >= 3.12
   if is_trixie || { [ "$PY_MAJOR" -ge 3 ] && [ "$PY_MINOR" -ge 12 ]; }; then
     ensure_uv
 
@@ -305,6 +311,7 @@ create_venv
 # shellcheck disable=SC1090
 source "$VENV_DIR/bin/activate"
 
+# Make pip sane
 python -m pip install --upgrade pip setuptools wheel >/dev/null
 
 # -----------------------------
@@ -328,6 +335,14 @@ fi
 pip install -r requirements.txt
 
 # -----------------------------
+# FIX: Pre-install CLIP (avoids pkg_resources build failure)
+# -----------------------------
+progress_bar "Pre-installing CLIP (workaround for pkg_resources build error)..."
+python -m pip install --upgrade pip setuptools wheel >/dev/null
+python -m pip install --no-build-isolation \
+  "git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1" || true
+
+# -----------------------------
 # Download the model files (README: comment out MODEL lines to disable)
 # -----------------------------
 progress_bar "Downloading the model files..."
@@ -341,7 +356,7 @@ download_if_missing "$MODEL1_URL" "$MODEL1_PATH"
 download_if_missing "$MODEL2_URL" "$MODEL2_PATH"
 
 # -----------------------------
-# Create the unified run_sd.sh script (fixed HOME detection)
+# Create the unified run_sd.sh script (robust HOME + CLIP precheck)
 # -----------------------------
 progress_bar "Creating run_sd.sh script..."
 cat <<'EOF' > "$USER_HOME/run_sd.sh"
@@ -380,7 +395,6 @@ cleanup() {
   if command -v pkill >/dev/null 2>&1; then
     pkill -f "launch.py" 2>/dev/null || true
   fi
-  # Only deactivate if it exists
   if declare -F deactivate >/dev/null 2>&1; then
     deactivate 2>/dev/null || true
   fi
@@ -412,6 +426,12 @@ case "$choice" in
     echo -e "${GREEN}Running with internet connection (LAN access)...${NC}"
     source "$VENV_DIR/bin/activate"
     cd "$WEBUI_DIR" || exit 1
+
+    # Ensure CLIP doesn't fail due to build isolation / pkg_resources
+    python -m pip install --upgrade pip setuptools wheel >/dev/null
+    python -m pip install --no-build-isolation \
+      "git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1" || true
+
     DEFAULT_LOCAL_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
     [ -n "${DEFAULT_LOCAL_IP:-}" ] || DEFAULT_LOCAL_IP="127.0.0.1"
     echo -e "Access it at: http://$DEFAULT_LOCAL_IP:7860"
@@ -422,6 +442,11 @@ case "$choice" in
     echo -e "${GREEN}Running completely offline (localhost only)...${NC}"
     source "$VENV_DIR/bin/activate"
     cd "$WEBUI_DIR" || exit 1
+
+    python -m pip install --upgrade pip setuptools wheel >/dev/null
+    python -m pip install --no-build-isolation \
+      "git+https://github.com/openai/CLIP.git@d50d76daa670286dd6cacf3bcd80b5e4823fc8e1" || true
+
     echo -e "Access it at: http://127.0.0.1:7860"
     python launch.py --skip-torch-cuda-test --no-half --listen --skip-install
     cleanup
@@ -443,7 +468,7 @@ EOF
 chmod +x "$USER_HOME/run_sd.sh"
 
 # -----------------------------
-# Create remove.sh (fixed HOME detection)
+# Create remove.sh (robust HOME)
 # -----------------------------
 progress_bar "Creating remove.sh script..."
 cat <<'EOF' > "$USER_HOME/remove.sh"
