@@ -1,16 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# ============================================================
-# install_sd.sh  (RPi5 + RPi4)
-# Fixes:
-# 1) Robust user/home detection (no eval/tilde issues)
-# 2) Adds python3-setuptools at apt level
-# 3) Fixes CLIP install by patching launch_utils.py to use:
-#    --no-build-isolation (and --no-use-pep517) to avoid pkg_resources error
-# 4) Generates run_sd.sh + remove.sh using same robust home logic
-# ============================================================
-
 # -----------------------------
 # Pretty output colors
 # -----------------------------
@@ -25,33 +15,9 @@ progress_bar() {
 }
 
 # -----------------------------
-# Resolve target user/home robustly (sudo/non-sudo safe)
-# -----------------------------
-get_target_user() {
-  if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
-    echo "$SUDO_USER"
-  else
-    id -un
-  fi
-}
-
-get_home_for_user() {
-  local u="$1"
-  local h=""
-  h="$(getent passwd "$u" | cut -d: -f6 || true)"
-  if [ -n "$h" ] && [ -d "$h" ]; then
-    echo "$h"
-    return 0
-  fi
-  echo "${HOME:-/home/$u}"
-}
-
-TARGET_USER="$(get_target_user)"
-USER_HOME="$(get_home_for_user "$TARGET_USER")"
-
-# -----------------------------
 # Home + paths
 # -----------------------------
+USER_HOME="$(eval echo "~$USER")"
 WEBUI_DIR="$USER_HOME/stable-diffusion-webui"
 VENV_DIR="$USER_HOME/stable-diffusion-env"
 
@@ -103,9 +69,7 @@ sudo apt update && sudo apt upgrade -y
 # Install dependencies
 # -----------------------------
 progress_bar "Installing necessary dependencies..."
-sudo apt install -y \
-  python3 python3-pip python3-venv python3-setuptools \
-  git libgl1 libglib2.0-0 wget curl
+sudo apt install -y python3 python3-pip python3-venv git libgl1 libglib2.0-0 wget curl
 
 # -----------------------------
 # Gate unsupported architectures
@@ -128,7 +92,10 @@ need_cmd curl
 need_cmd wget
 
 # -----------------------------
-# Python version detection
+# Python selection:
+# - Bookworm: system python3 (typically 3.11) -> venv normally
+# - Trixie: system python3 (typically >=3.12/3.13) -> venv using uv + Python 3.11
+# - Also: if system python is >= 3.12 on any distro -> use uv + Python 3.11
 # -----------------------------
 PY_MAJOR="$(python3 -c 'import sys; print(sys.version_info.major)')"
 PY_MINOR="$(python3 -c 'import sys; print(sys.version_info.minor)')"
@@ -139,10 +106,13 @@ PY_MINOR="$(python3 -c 'import sys; print(sys.version_info.minor)')"
 UV_BIN=""
 
 find_uv() {
+  # Prefer PATH
   if command -v uv >/dev/null 2>&1; then
     command -v uv
     return 0
   fi
+
+  # Common install locations
   if [ -x "$USER_HOME/.local/bin/uv" ]; then
     echo "$USER_HOME/.local/bin/uv"
     return 0
@@ -151,6 +121,7 @@ find_uv() {
     echo "$USER_HOME/.cargo/bin/uv"
     return 0
   fi
+
   return 1
 }
 
@@ -161,8 +132,11 @@ ensure_uv() {
 
   progress_bar "Installing uv (local Python manager) for Trixie compatibility..."
   mkdir -p "$USER_HOME/.local/bin"
+
+  # Install uv (Astral installer). It may place uv in ~/.local/bin OR ~/.cargo/bin.
   curl -fsSL https://astral.sh/uv/install.sh | sh
 
+  # Re-check
   if UV_BIN="$(find_uv)"; then
     return 0
   fi
@@ -188,6 +162,7 @@ create_venv() {
       exit 1
     fi
 
+    # Hard guarantee: must be 3.11 inside venv
     VENV_MM="$("$VENV_DIR/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
     if [ "$VENV_MM" != "3.11" ]; then
       echo -e "${RED}Venv Python is not 3.11 (got ${VENV_MM}). Aborting to prevent a broken install.${NC}"
@@ -203,9 +178,11 @@ create_venv() {
 # Helper: download if missing (models)
 # -----------------------------
 download_if_missing() {
+  # $1=url, $2=path
   local url="$1"
   local path="$2"
 
+  # README: user disables downloads by commenting out MODEL lines
   if [ -z "$url" ] || [ -z "$path" ]; then
     echo -e "${YELLOW}Model download disabled (MODEL lines commented out). Skipping.${NC}"
     return 0
@@ -348,7 +325,7 @@ download_if_missing "$MODEL1_URL" "$MODEL1_PATH"
 download_if_missing "$MODEL2_URL" "$MODEL2_PATH"
 
 # -----------------------------
-# Create the unified run_sd.sh script (robust HOME)
+# Create the unified run_sd.sh script
 # -----------------------------
 progress_bar "Creating run_sd.sh script..."
 cat <<'EOF' > "$USER_HOME/run_sd.sh"
@@ -358,38 +335,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-get_target_user() {
-  if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
-    echo "$SUDO_USER"
-  else
-    id -un
-  fi
-}
-
-get_home_for_user() {
-  local u="$1"
-  local h=""
-  h="$(getent passwd "$u" | cut -d: -f6 || true)"
-  if [ -n "$h" ] && [ -d "$h" ]; then
-    echo "$h"
-    return 0
-  fi
-  echo "${HOME:-/home/$u}"
-}
-
-TARGET_USER="$(get_target_user)"
-USER_HOME="$(get_home_for_user "$TARGET_USER")"
+USER_HOME=$(eval echo ~$USER)
 WEBUI_DIR="$USER_HOME/stable-diffusion-webui"
 VENV_DIR="$USER_HOME/stable-diffusion-env"
 
 cleanup() {
   echo -e "${YELLOW}Stopping Stable Diffusion...${NC}"
-  if command -v pkill >/dev/null 2>&1; then
-    pkill -f "launch.py" 2>/dev/null || true
-  fi
-  if declare -F deactivate >/dev/null 2>&1; then
-    deactivate 2>/dev/null || true
-  fi
+  pkill -f "launch.py" 2>/dev/null || true
+  deactivate 2>/dev/null || true
   echo -e "${YELLOW}Virtual environment deactivated.${NC}"
   exit
 }
@@ -418,8 +371,7 @@ case "$choice" in
     echo -e "${GREEN}Running with internet connection (LAN access)...${NC}"
     source "$VENV_DIR/bin/activate"
     cd "$WEBUI_DIR" || exit 1
-    DEFAULT_LOCAL_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-    [ -n "${DEFAULT_LOCAL_IP:-}" ] || DEFAULT_LOCAL_IP="127.0.0.1"
+    DEFAULT_LOCAL_IP=$(hostname -I | awk '{print $1}')
     echo -e "Access it at: http://$DEFAULT_LOCAL_IP:7860"
     python launch.py --skip-torch-cuda-test --no-half --listen
     cleanup
@@ -449,33 +401,12 @@ EOF
 chmod +x "$USER_HOME/run_sd.sh"
 
 # -----------------------------
-# Create remove.sh (robust HOME)
+# Create remove.sh
 # -----------------------------
 progress_bar "Creating remove.sh script..."
 cat <<'EOF' > "$USER_HOME/remove.sh"
 #!/bin/bash
-
-get_target_user() {
-  if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
-    echo "$SUDO_USER"
-  else
-    id -un
-  fi
-}
-
-get_home_for_user() {
-  local u="$1"
-  local h=""
-  h="$(getent passwd "$u" | cut -d: -f6 || true)"
-  if [ -n "$h" ] && [ -d "$h" ]; then
-    echo "$h"
-    return 0
-  fi
-  echo "${HOME:-/home/$u}"
-}
-
-TARGET_USER="$(get_target_user)"
-USER_HOME="$(get_home_for_user "$TARGET_USER")"
+USER_HOME=$(eval echo ~$USER)
 
 if [ -f "$USER_HOME/run_sd.sh" ]; then
   echo "Removing $USER_HOME/run_sd.sh..."
@@ -500,27 +431,14 @@ chmod +x "$USER_HOME/remove.sh"
 
 # -----------------------------
 # Patch: repair broken repo URL in launch_utils.py
-# + Patch: fix CLIP install flags (no build isolation / no pep517)
 # -----------------------------
 echo "Patch to repair broken repo pre-loded from automatic1111 offical GitHub repo."
 cd "$USER_HOME/stable-diffusion-webui" || exit 1
 cp -a modules/launch_utils.py "modules/launch_utils.py.bak.$(date +%F_%H%M%S)"
-
-# Your existing repo URL patch
 grep -n "stable_diffusion_repo" modules/launch_utils.py >/dev/null 2>&1
 grep -n "stable_diffusion_commit_hash" modules/launch_utils.py >/dev/null 2>&1
 sed -i 's#https://github.com/Stability-AI/stablediffusion.git#https://github.com/comp6062/Stability-AI-stablediffusion.git#g' modules/launch_utils.py
 rm -rf repositories/stable-diffusion-stability-ai
-
-# NEW: CLIP install patch to prevent pkg_resources failure
-# (A1111 calls: run_pip(f"install {clip_package}", "clip"))
-if grep -n 'run_pip(f"install {clip_package}", "clip")' modules/launch_utils.py >/dev/null 2>&1; then
-  sed -i 's/run_pip(f"install {clip_package}", "clip")/run_pip(f"install --no-build-isolation --no-use-pep517 {clip_package}", "clip")/g' modules/launch_utils.py
-  echo "Patched CLIP install to use --no-build-isolation --no-use-pep517"
-else
-  echo "WARNING: Could not find expected CLIP install line to patch. CLIP may still fail at runtime."
-fi
-
 echo "End Patch"
 
 # Installer succeeded; don't clean up.
