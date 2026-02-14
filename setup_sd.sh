@@ -97,9 +97,6 @@ source "$VENV_DIR/bin/activate"
 progress "Upgrading pip tooling (pinned to avoid pkg_resources issues)..."
 python -m pip install -U "pip<24.1" "setuptools<70" wheel packaging
 
-pip install --upgrade pip &&
-
-
 # Clone webui and pin to known working commit (from your logs)
 progress "Cloning AUTOMATIC1111 WebUI..."
 rm -rf "$WEBUI_DIR" 2>/dev/null || true
@@ -132,44 +129,6 @@ else
   fail "ERROR: modules/launch_utils.py not found — cannot apply required patches."
   exit 1
 fi
-
-
-# -----------------------------
-# Helper: download if missing (models)
-# -----------------------------
-download_if_missing() {
-  # $1=url, $2=path
-  local url="$1"
-  local path="$2"
-
-  # README: user disables downloads by commenting out MODEL lines
-  if [ -z "${url:-}" ] || [ -z "${path:-}" ]; then
-    echo -e "${YELLOW}Model download disabled (MODEL lines commented out). Skipping.${NC}"
-    return 0
-  fi
-
-  if [ -f "$path" ]; then
-    echo -e "${GREEN}Model already exists:${NC} $path"
-    return 0
-  fi
-
-  mkdir -p "$(dirname "$path")"
-  echo -e "${YELLOW}Downloading model:${NC} $url"
-  wget -O "$path" "$url"
-}
-
-# -----------------------------
-# Download the model files (README: comment out MODEL lines to disable)
-# -----------------------------
-progress "Downloading the model files..."
-
-MODEL1_PATH="$WEBUI_DIR/models/Stable-diffusion/CyberRealistic_V7.0_FP16.safetensors"
-MODEL1_URL="https://huggingface.co/cyberdelia/CyberRealistic/resolve/main/CyberRealistic_V7.0_FP16.safetensors"
-MODEL2_PATH="$WEBUI_DIR/models/Stable-diffusion/Realistic_Vision_V5.1-inpainting.safetensors"
-MODEL2_URL="https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/resolve/main/Realistic_Vision_V5.1-inpainting.safetensors"
-
-download_if_missing "$MODEL1_URL" "$MODEL1_PATH"
-download_if_missing "$MODEL2_URL" "$MODEL2_PATH"
 
 deactivate || true
 
@@ -216,9 +175,8 @@ trap cleanup SIGINT
 
 echo ""
 echo -e "${GREEN}Select an option:${NC}"
-echo "1) Run connected to the internet (http://LAN_IP:7860) 
-[run once first after setup]"
-echo "2) Run completely offline / localhost only (http://127.0.0.1:7860)"
+echo "1) Run connected to the internet (http://LAN_IP:7860)  [first run installs]"
+echo "2) Run completely offline / localhost only (http://127.0.0.1:7860)  [no installs]"
 echo "3) Uninstall"
 echo "q) Quit"
 echo ""
