@@ -216,8 +216,9 @@ trap cleanup SIGINT
 
 echo ""
 echo -e "${GREEN}Select an option:${NC}"
-echo "1) Run connected to the internet (http://LAN_IP:7860)  [first run installs]"
-echo "2) Run completely offline / localhost only (http://127.0.0.1:7860)  [no installs]"
+echo "1) Run connected to the internet (http://LAN_IP:7860) 
+[run once first after setup]"
+echo "2) Run completely offline / localhost only (http://127.0.0.1:7860)"
 echo "3) Uninstall"
 echo "q) Quit"
 echo ""
