@@ -97,6 +97,9 @@ source "$VENV_DIR/bin/activate"
 progress "Upgrading pip tooling (pinned to avoid pkg_resources issues)..."
 python -m pip install -U "pip<24.1" "setuptools<70" wheel packaging
 
+pip install --upgrade pip &&
+
+
 # Clone webui and pin to known working commit (from your logs)
 progress "Cloning AUTOMATIC1111 WebUI..."
 rm -rf "$WEBUI_DIR" 2>/dev/null || true
