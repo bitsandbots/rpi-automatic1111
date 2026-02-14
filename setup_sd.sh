@@ -130,6 +130,44 @@ else
   exit 1
 fi
 
+
+# -----------------------------
+# Helper: download if missing (models)
+# -----------------------------
+download_if_missing() {
+  # $1=url, $2=path
+  local url="$1"
+  local path="$2"
+
+  # README: user disables downloads by commenting out MODEL lines
+  if [ -z "${url:-}" ] || [ -z "${path:-}" ]; then
+    echo -e "${YELLOW}Model download disabled (MODEL lines commented out). Skipping.${NC}"
+    return 0
+  fi
+
+  if [ -f "$path" ]; then
+    echo -e "${GREEN}Model already exists:${NC} $path"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$path")"
+  echo -e "${YELLOW}Downloading model:${NC} $url"
+  wget -O "$path" "$url"
+}
+
+# -----------------------------
+# Download the model files (README: comment out MODEL lines to disable)
+# -----------------------------
+progress "Downloading the model files..."
+
+MODEL1_PATH="$WEBUI_DIR/models/Stable-diffusion/CyberRealistic_V7.0_FP16.safetensors"
+MODEL1_URL="https://huggingface.co/cyberdelia/CyberRealistic/resolve/main/CyberRealistic_V7.0_FP16.safetensors"
+MODEL2_PATH="$WEBUI_DIR/models/Stable-diffusion/Realistic_Vision_V5.1-inpainting.safetensors"
+MODEL2_URL="https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/resolve/main/Realistic_Vision_V5.1-inpainting.safetensors"
+
+download_if_missing "$MODEL1_URL" "$MODEL1_PATH"
+download_if_missing "$MODEL2_URL" "$MODEL2_PATH"
+
 deactivate || true
 
 # Create run_sd.sh (Option 1 = installs allowed)
