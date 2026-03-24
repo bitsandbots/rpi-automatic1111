@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================
-# setup_sd.sh  (ONLY minimal fixes applied)
+# setup_sd.sh (ONLY REQUIRED FIXES APPLIED)
 # ============================================================
 
 RED='\033[0;31m'
@@ -26,11 +26,7 @@ get_home_for_user() {
   local u="$1"
   local h=""
   h="$(getent passwd "$u" | cut -d: -f6 || true)"
-  if [ -n "$h" ] && [ -d "$h" ]; then
-    echo "$h"
-    return 0
-  fi
-  echo "${HOME:-/home/$u}"
+  [ -d "$h" ] && echo "$h" || echo "${HOME:-/home/$u}"
 }
 
 TARGET_USER="$(get_target_user)"
@@ -40,71 +36,47 @@ WEBUI_DIR="$USER_HOME/stable-diffusion-webui"
 VENV_DIR="$USER_HOME/stable-diffusion-env"
 
 CLEANUP_ON_FAIL=1
-cleanup_partial_install() {
-  [ "$CLEANUP_ON_FAIL" = "1" ] || return 0
-  echo -e "${YELLOW}Installer failed. Cleaning up partial install...${NC}"
-  rm -rf "$WEBUI_DIR" 2>/dev/null || true
-  rm -rf "$VENV_DIR" 2>/dev/null || true
-}
-trap cleanup_partial_install ERR
+trap 'rm -rf "$WEBUI_DIR" "$VENV_DIR" 2>/dev/null || true' ERR
 
-ARCH="$(uname -m)"
-progress "Detected architecture: ${ARCH}"
+progress "Detected architecture: $(uname -m)"
 
 # ============================================================
-# FIX 1: disable piwheels safely (no permission crash)
+# FIX 1: disable piwheels
 # ============================================================
 progress "Sanitizing pip configuration..."
 
-remove_piwheels_user() {
-  local f="$1"
-  [ -f "$f" ] || return 0
-  grep -qi "piwheels" "$f" && sed -i '/piwheels/d' "$f" || true
-}
-
-remove_piwheels_system() {
-  local f="$1"
-  [ -f "$f" ] || return 0
-  grep -qi "piwheels" "$f" && sudo sed -i '/piwheels/d' "$f" 2>/dev/null || true
-}
-
-remove_piwheels_user "$USER_HOME/.config/pip/pip.conf"
-remove_piwheels_user "$USER_HOME/.pip/pip.conf"
-remove_piwheels_system "/etc/pip.conf"
+sed -i '/piwheels/d' "$USER_HOME/.config/pip/pip.conf" 2>/dev/null || true
+sed -i '/piwheels/d' "$USER_HOME/.pip/pip.conf" 2>/dev/null || true
+sudo sed -i '/piwheels/d' /etc/pip.conf 2>/dev/null || true
 
 # ============================================================
 
-progress "Updating system packages..."
-sudo apt update
-sudo apt upgrade -y
+progress "Updating system..."
+sudo apt update && sudo apt upgrade -y
 
-progress "Installing OS dependencies..."
+progress "Installing dependencies..."
 sudo apt install -y \
   git wget curl ca-certificates \
   python3 python3-venv python3-pip python3-dev \
   python3-setuptools python3-pkg-resources \
-  build-essential \
-  libgl1 libglib2.0-0
+  build-essential libgl1 libglib2.0-0
 
-progress "Creating virtual environment..."
-rm -rf "$VENV_DIR" 2>/dev/null || true
+progress "Creating venv..."
+rm -rf "$VENV_DIR"
 sudo -u "$TARGET_USER" python3 -m venv "$VENV_DIR"
 
 source "$VENV_DIR/bin/activate"
 
-# ============================================================
-# FIX 1 (continued): force pip to ignore configs
-# ============================================================
+# FIX 1 (force ignore configs)
 export PIP_CONFIG_FILE=/dev/null
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 export PIP_NO_INPUT=1
-# ============================================================
 
-progress "Upgrading pip tooling..."
+progress "Upgrading pip..."
 python -m pip install -U "pip<24.1" "setuptools<70" wheel packaging
 
-progress "Cloning AUTOMATIC1111 WebUI..."
-rm -rf "$WEBUI_DIR" 2>/dev/null || true
+progress "Cloning WebUI..."
+rm -rf "$WEBUI_DIR"
 sudo -u "$TARGET_USER" git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git "$WEBUI_DIR"
 
 cd "$WEBUI_DIR"
@@ -113,30 +85,29 @@ sudo -u "$TARGET_USER" git checkout 82a973c04367123ae98bd9abdf80d9eda9b910e2
 progress "Installing PyTorch..."
 python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-progress "Installing WebUI requirements..."
+progress "Installing requirements..."
 python -m pip install -r requirements.txt --index-url https://pypi.org/simple
 
 # ============================================================
-# FIX 2: correct pytorch_lightning version
+# FIX 2: correct pytorch_lightning
 # ============================================================
 python -m pip install pytorch-lightning==1.9.5 --index-url https://pypi.org/simple
+
+# ============================================================
+# FIX 3: install CLIP (missing on ARM)
+# ============================================================
+python -m pip install git+https://github.com/openai/CLIP.git --no-deps --index-url https://pypi.org/simple
 # ============================================================
 
-progress "Patching launch_utils.py..."
+progress "Patching launch_utils..."
 sed -i 's#https://github.com/Stability-AI/stablediffusion.git#https://github.com/comp6062/Stability-AI-stablediffusion.git#g' modules/launch_utils.py
-
 sed -i 's/run_pip(f"install {clip_package}", "clip")/run_pip(f"install --no-build-isolation --no-use-pep517 {clip_package}", "clip")/g' modules/launch_utils.py
 
 download_if_missing() {
-  local url="$1"
-  local path="$2"
-  [ -f "$path" ] && return 0
-  mkdir -p "$(dirname "$path")"
-  wget -O "$path" "$url"
+  [ -f "$2" ] || { mkdir -p "$(dirname "$2")"; wget -O "$2" "$1"; }
 }
 
-progress "Downloading model files..."
-
+progress "Downloading models..."
 download_if_missing \
 "https://huggingface.co/cyberdelia/CyberRealistic/resolve/main/CyberRealistic_V7.0_FP16.safetensors" \
 "$WEBUI_DIR/models/Stable-diffusion/CyberRealistic_V7.0_FP16.safetensors"
@@ -148,9 +119,8 @@ download_if_missing \
 deactivate || true
 
 # ============================================================
-# LAUNCHER (UNCHANGED — your original)
+# YOUR ORIGINAL LAUNCHER (UNCHANGED)
 # ============================================================
-progress "Creating launcher: $USER_HOME/run_sd.sh"
 cat <<'EOF' > "$USER_HOME/run_sd.sh"
 #!/bin/bash
 set -euo pipefail
@@ -197,8 +167,6 @@ EOF
 
 chmod +x "$USER_HOME/run_sd.sh"
 chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/run_sd.sh"
-
-progress "Creating uninstaller..."
 
 cat <<'EOF' > "$USER_HOME/remove.sh"
 #!/bin/bash
