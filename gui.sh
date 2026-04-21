@@ -49,7 +49,7 @@ CHOICE=$(zenity --list \
     "Quit")
 
 case "$CHOICE" in
-    "LAN Mode (install if needed)")
+    "LAN Mode (Run once after install)")
         run_mode 1
         ;;
     "Offline Mode")
