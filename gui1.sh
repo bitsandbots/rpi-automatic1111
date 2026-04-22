@@ -42,14 +42,14 @@ stop_run() {
 CHOICE=$(zenity --list \
     --title="Stable Diffusion GUI" \
     --column="Action" \
-    "LAN Mode (install if needed)" \
+    "LAN Mode (run once after install)" \
     "Offline Mode" \
     "Uninstall" \
     "Stop Running" \
     "Quit")
 
 case "$CHOICE" in
-    "LAN Mode (install if needed)")
+    "LAN Mode (run once after install)")
         run_mode 1
         ;;
     "Offline Mode")
