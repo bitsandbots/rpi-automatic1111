@@ -162,11 +162,24 @@ chmod +x "$USER_HOME/run_sd.sh"
 chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/run_sd.sh"
 
 # ============================================================
-# GUI INSTALL TRIGGER (ADDED EXACTLY AFTER run_sd.sh CREATION)
+# GUI INSTALL (AUTO-DOWNLOAD + VERIFY + EXECUTE)
 # ============================================================
-if [ -f "$USER_HOME/gui1.sh" ]; then
-  bash "$USER_HOME/gui1.sh"
+GUI_URL="https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/gui1.sh"
+GUI_PATH="$USER_HOME/gui1.sh"
+
+# Download gui1.sh
+curl -sSL "$GUI_URL" -o "$GUI_PATH"
+chmod +x "$GUI_PATH"
+chown "$TARGET_USER:$TARGET_USER" "$GUI_PATH"
+
+# Verify download
+if [ ! -s "$GUI_PATH" ]; then
+  echo "ERROR: gui1.sh failed to download or is empty."
+  exit 1
 fi
+
+# Execute GUI installer
+bash "$GUI_PATH"
 
 # ============================================================
 # UPDATED REMOVE.SH (FULL REPLACEMENT)
