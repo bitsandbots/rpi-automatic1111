@@ -163,6 +163,19 @@ Or using wget:
 wget -qO- https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/setup_sd.sh | bash
 ```
 
+After installation install the GUI (optional) 
+
+```bash
+curl -sSL https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/gui.sh | bash
+```
+
+Or using wget:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/gui.sh | bash
+```
+
+
 ### The installer will
 
 - Install system dependencies
