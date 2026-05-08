@@ -184,3 +184,4 @@ chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/remove.sh"
 CLEANUP_ON_FAIL=0
 ok "Setup complete."
 ok "Run: ~/run_sd.sh"
+ 
