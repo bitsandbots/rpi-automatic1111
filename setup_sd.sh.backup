@@ -103,18 +103,18 @@ progress "Patching launch_utils..."
 sed -i 's#https://github.com/Stability-AI/stablediffusion.git#https://github.com/comp6062/Stability-AI-stablediffusion.git#g' modules/launch_utils.py
 sed -i 's/run_pip(f"install {clip_package}", "clip")/run_pip(f"install --no-build-isolation --no-use-pep517 {clip_package}", "clip")/g' modules/launch_utils.py
 
-download_if_missing() {
-  [ -f "$2" ] || { mkdir -p "$(dirname "$2")"; wget -O "$2" "$1"; }
-}
+#download_if_missing() {
+ # [ -f "$2" ] || { mkdir -p "$(dirname "$2")"; wget -O "$2" "$1"; }
+#}
+#
+#progress "Downloading models..."
+#download_if_missing \
+#"https://huggingface.co/cyberdelia/CyberRealistic/resolve/main/CyberRealistic_V7.0_FP16.safetensors" \
+#"$WEBUI_DIR/models/Stable-diffusion/CyberRealistic_V7.0_FP16.safetensors"
 
-progress "Downloading models..."
-download_if_missing \
-"https://huggingface.co/cyberdelia/CyberRealistic/resolve/main/CyberRealistic_V7.0_FP16.safetensors" \
-"$WEBUI_DIR/models/Stable-diffusion/CyberRealistic_V7.0_FP16.safetensors"
-
-download_if_missing \
-"https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/resolve/main/Realistic_Vision_V5.1-inpainting.safetensors" \
-"$WEBUI_DIR/models/Stable-diffusion/Realistic_Vision_V5.1-inpainting.safetensors"
+#download_if_missing \
+#"https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/resolve/main/Realistic_Vision_V5.1-inpainting.safetensors" \
+#"$WEBUI_DIR/models/Stable-diffusion/Realistic_Vision_V5.1-inpainting.safetensors"
 
 deactivate || true
 
