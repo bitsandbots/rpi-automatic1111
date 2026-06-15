@@ -127,7 +127,7 @@ if [ "$DOWNLOAD_MODELS" = "1" ]; then
   "$WEBUI_DIR/models/Stable-diffusion/Realistic_Vision_V5.1-inpainting.safetensors"
 fi
 
-deactivate || true
+deactivate || false
 
 # ============================================================
 # YOUR ORIGINAL LAUNCHER (UNCHANGED)
