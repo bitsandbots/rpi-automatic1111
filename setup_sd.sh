@@ -17,7 +17,7 @@ fail() { echo -e "${RED}$1${NC}"; }
 # ============================================================
 # MODEL DOWNLOAD TOGGLE
 # ============================================================
-DOWNLOAD_MODELS=0
+DOWNLOAD_MODELS=1
 
 get_target_user() {
   if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
