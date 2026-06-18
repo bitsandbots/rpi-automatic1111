@@ -280,7 +280,7 @@ The launcher prints the Raspberry Pi LAN URL, usually:
 http://<pi-ip-address>:7860
 ```
 
-Use this mode for the first run so any remaining WebUI startup dependencies can finish installing.
+**Important:** After installation completes, run Stable Diffusion once using **LAN Mode while connected to the internet**. During this first launch, AUTOMATIC1111 may download and install additional required files and dependencies. After the first successful online launch, Stable Diffusion can be run using **Offline Mode** without internet access.
 
 ---
 
