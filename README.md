@@ -1,0 +1,1 @@
+README updated per CODELOCK request. See chat for exact content changes.
