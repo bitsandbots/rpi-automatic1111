@@ -168,7 +168,6 @@ Or using wget:
 wget -qO- https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/setup_sd.sh | bash
 ```
 
-GUI support is installed automatically during setup. No separate GUI installation is required.
 
 ### The installer will
 
