@@ -58,7 +58,7 @@ CPU-only PyTorch from the official PyTorch CPU wheel index.
 
 ---
 
-### ARM64 aarch64 recommended
+### ARM64 (aarch64)
 
 This is the **preferred and most reliable configuration**.
 
@@ -75,7 +75,7 @@ This is the **preferred and most reliable configuration**.
 
 ---
 
-### ARM32 armv7l best-effort
+### ARM32 (armv7l)
 
 ARM32 (32-bit Raspberry Pi OS) support is **best-effort only**.
 
@@ -138,7 +138,7 @@ This keeps the setup consistent and repeatable.
 - **64-bit Raspberry Pi OS**
 - Desktop environment if you want to use the GUI launcher
 
-### Required Packages Installed By Setup
+### Installed Packages
 - python3
 - python3-venv
 - python3-pip
@@ -202,11 +202,11 @@ The default downloaded models are:
 
 ---
 
-## Enable Model Downloads (Default)
+## Enable Model Downloads
 
 To enable model downloads, set:
 
-### Enabled (Download Models During Setup)
+### Enabled
 
 ```bash
 DOWNLOAD_MODELS=1
@@ -223,7 +223,7 @@ When enabled:
 
 If you prefer to **skip downloading models during installation** (for example, for offline systems or when supplying your own models), you can disable this behavior.
 
-### Disabled (No Model Downloads)
+### Disabled
 
 ```bash
 DOWNLOAD_MODELS=0
@@ -237,7 +237,7 @@ When disabled:
 
 ---
 
-## Adding Models Manually (Optional)
+## Adding Models Manually
 
 If model downloads are disabled, place your `.ckpt` or `.safetensors` files in:
 
