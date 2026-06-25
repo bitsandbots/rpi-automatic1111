@@ -10,7 +10,7 @@ progress() { echo -e "${YELLOW}$1${NC}"; sleep 0.4; }
 ok() { echo -e "${GREEN}$1${NC}"; }
 fail() { echo -e "${RED}$1${NC}"; }
 
-DOWNLOAD_MODELS=0
+DOWNLOAD_MODELS=1
 
 get_target_user() {
   if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
@@ -151,7 +151,14 @@ case "$c" in
     python launch.py --skip-torch-cuda-test --no-half --listen --skip-install
     ;;
   3)
-    "$USER_HOME/remove.sh"
+    rm -rf "$WEBUI_DIR"
+    rm -rf "$VENV_DIR"
+    rm -f "$USER_HOME/run_sd.sh"
+    rm -f "$USER_HOME/.sd_gui_runner.sh"
+    rm -f "$USER_HOME/.local/share/applications/sd-gui.desktop"
+    rm -f "$USER_HOME/Desktop/StableDiffusionGUI.desktop"
+    rm -f /tmp/sd_gui.pid
+    echo "Cleanup complete."
     ;;
   q|Q)
     exit 0
@@ -249,23 +256,6 @@ EOF
 cp "$LAUNCHER" "$DESKTOP_SHORTCUT"
 chmod +x "$DESKTOP_SHORTCUT"
 chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT"
-
-cat <<'EOF' > "$USER_HOME/remove.sh"
-#!/bin/bash
-USER_HOME="$(getent passwd "${SUDO_USER:-$(whoami)}" | cut -d: -f6)"
-rm -rf "$USER_HOME/stable-diffusion-webui"
-rm -rf "$USER_HOME/stable-diffusion-env"
-rm -f "$USER_HOME/run_sd.sh"
-rm -f "$USER_HOME/.sd_gui_runner.sh"
-rm -f "$USER_HOME/.local/share/applications/sd-gui.desktop"
-rm -f "$USER_HOME/Desktop/StableDiffusionGUI.desktop"
-rm -f /tmp/sd_gui.pid
-rm -f "$USER_HOME/remove.sh"
-echo "Cleanup complete."
-EOF
-
-chmod +x "$USER_HOME/remove.sh"
-chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/remove.sh"
 
 CLEANUP_ON_FAIL=0
 ok "Setup complete."
