@@ -10,7 +10,7 @@ progress() { echo -e "${YELLOW}$1${NC}"; sleep 0.4; }
 ok() { echo -e "${GREEN}$1${NC}"; }
 fail() { echo -e "${RED}$1${NC}"; }
 
-DOWNLOAD_MODELS=0
+DOWNLOAD_MODELS=1
 
 get_target_user() {
   if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
