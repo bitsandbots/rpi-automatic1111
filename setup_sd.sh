@@ -184,13 +184,13 @@ cat <<'EOF' > "$USER_HOME/.sd_gui_runner.sh"
 #!/bin/bash
 
 SCRIPT="$HOME/run_sd.sh"
+WEBUI_DIR="$HOME/stable-diffusion-webui"
 PID_FILE="/tmp/sd_gui.pid"
 
 run_mode() {
     MODE="$1"
 
-    # Run in terminal and keep it open
-    lxterminal --command="bash -c 'echo Running mode $MODE; printf \"%s\n\" \"$MODE\" | \"$SCRIPT\"; echo; echo Press ENTER to close...; read'" &
+    setsid lxterminal --command="bash -c 'echo Running mode $MODE; printf \"%s\\n\" \"$MODE\" | \"$SCRIPT\"; echo; echo Press ENTER to close...; read'" &
     echo $! > "$PID_FILE"
 
     zenity --notification \
@@ -200,42 +200,52 @@ run_mode() {
 stop_run() {
     if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
+        kill -TERM -"$PID" 2>/dev/null || true
+        pkill -TERM -P "$PID" 2>/dev/null || true
         kill "$PID" 2>/dev/null || true
         rm -f "$PID_FILE"
-        zenity --notification --text="Stable Diffusion stopped"
-    else
-        zenity --error --text="Not running"
     fi
+
+    pkill -TERM -f "$WEBUI_DIR/launch.py" 2>/dev/null || true
+    pkill -TERM -f "python.*launch.py.*--listen" 2>/dev/null || true
+    sleep 2
+    pkill -KILL -f "$WEBUI_DIR/launch.py" 2>/dev/null || true
+    pkill -KILL -f "python.*launch.py.*--listen" 2>/dev/null || true
+
+    zenity --notification --text="Stable Diffusion stopped"
 }
 
-CHOICE=$(zenity --list \
-    --title="Stable Diffusion GUI" \
-    --column="Action" \
-    "LAN Mode (install if needed)" \
-    "Offline Mode" \
-    "Uninstall" \
-    "Stop Running" \
-    "Quit")
+while true; do
+    CHOICE=$(zenity --list \
+        --title="Stable Diffusion GUI" \
+        --column="Action" \
+        "LAN Mode (install if needed)" \
+        "Offline Mode" \
+        "Uninstall" \
+        "Stop Running" \
+        "Quit")
 
-case "$CHOICE" in
-    "LAN Mode (install if needed)")
-        run_mode 1
-        ;;
-    "Offline Mode")
-        run_mode 2
-        ;;
-    "Uninstall")
-        run_mode 3
-        ;;
-    "Stop Running")
-        stop_run
-        ;;
-    *)
-        exit 0
-        ;;
-esac
+    case "$CHOICE" in
+        "LAN Mode (install if needed)")
+            run_mode 1
+            ;;
+        "Offline Mode")
+            run_mode 2
+            ;;
+        "Uninstall")
+            run_mode 3
+            exit 0
+            ;;
+        "Stop Running")
+            stop_run
+            exit 0
+            ;;
+        *)
+            exit 0
+            ;;
+    esac
+done
 EOF
-
 chmod +x "$USER_HOME/.sd_gui_runner.sh"
 chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/.sd_gui_runner.sh"
 
