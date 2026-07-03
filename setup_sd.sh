@@ -230,7 +230,7 @@ progress "Installing PyTorch..."
 python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 progress "Installing requirements..."
-python -m pip install --no-cache-dir -r requirements.txt --index-url https://pypi.org/simple
+python -m pip install -r requirements.txt --index-url https://pypi.org/simple
 
 python -m pip install pytorch-lightning==1.9.5 --index-url https://pypi.org/simple
 python -m pip install git+https://github.com/openai/CLIP.git --no-deps --index-url https://pypi.org/simple
@@ -7960,12 +7960,15 @@ tk.Button(bottom, text="Exit", command=root.destroy, fg=TEXT, bg="#0b1020", acti
 
 def center_window():
     root.update_idletasks()
-    x = max(0, (screen_w - W) // 2)
-    y = max(0, (screen_h - H) // 2)
+    x = max(0, (root.winfo_screenwidth() - W) // 2)
+    y = max(0, (root.winfo_screenheight() - H) // 2)
     root.geometry(f"{W}x{H}+{x}+{y}")
 
 
-root.after(50, center_window)
+center_window()
+root.after_idle(center_window)
+root.after(250, center_window)
+root.after(750, center_window)
 root.mainloop()
 EOF
 
