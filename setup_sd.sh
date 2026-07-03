@@ -8002,6 +8002,9 @@ EOF
 cp "$LAUNCHER" "$DESKTOP_SHORTCUT"
 chmod +x "$DESKTOP_SHORTCUT"
 chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT"
+if command -v gio >/dev/null 2>&1; then
+  sudo -u "$TARGET_USER" gio set "$DESKTOP_SHORTCUT" metadata::trusted true 2>/dev/null || true
+fi
 
 fi
 
@@ -8023,6 +8026,9 @@ EOF
   [ "$CREATE_DESKTOP" = "1" ] && cp "$LAUNCHER" "$DESKTOP_SHORTCUT" && chmod +x "$DESKTOP_SHORTCUT"
   [ "$CREATE_MENU" != "1" ] && rm -f "$LAUNCHER"
   chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT" 2>/dev/null || true
+  if [ "$CREATE_DESKTOP" = "1" ] && command -v gio >/dev/null 2>&1; then
+    sudo -u "$TARGET_USER" gio set "$DESKTOP_SHORTCUT" metadata::trusted true 2>/dev/null || true
+  fi
 fi
 
 if [ "$INCLUDE_GUI" = "1" ]; then
