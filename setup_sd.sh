@@ -230,7 +230,7 @@ progress "Installing PyTorch..."
 python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 progress "Installing requirements..."
-python -m pip install -r requirements.txt --index-url https://pypi.org/simple
+python -m pip install --no-cache-dir -r requirements.txt --index-url https://pypi.org/simple
 
 python -m pip install pytorch-lightning==1.9.5 --index-url https://pypi.org/simple
 python -m pip install git+https://github.com/openai/CLIP.git --no-deps --index-url https://pypi.org/simple
