@@ -336,8 +336,9 @@ APP_NAME="Stable Diffusion GUI"
 LAUNCHER="$USER_HOME/.local/share/applications/sd-gui.desktop"
 DESKTOP_SHORTCUT="$USER_HOME/Desktop/StableDiffusionGUI.desktop"
 SCRIPT_DIR=""
-if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${0:-}"
+if [ -n "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 fi
 
 if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/sd_gui_banner.png" ]; then
