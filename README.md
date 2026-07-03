@@ -10,7 +10,7 @@ This repository provides a **fully automated setup** for running
 **AUTOMATIC1111 Stable Diffusion WebUI** (AI image generator), on Raspberry Pi and other ARM-based Linux systems.
 
 It supports **CPU-only inference**, is optimized for ARM environments, and includes
-a guided installer, integrated GUI launcher, unified launcher, and clean uninstall process.
+a guided installer, integrated GUI launcher, bundled banner artwork, unified launcher, and clean uninstall process.
 
 ---
 
@@ -44,8 +44,9 @@ This setup installs and configures:
 - Required Python packages and ARM-related fixes
 - Unified launcher (`~/run_sd.sh`)
 - Integrated GUI launcher (`~/.sd_gui_runner.sh`)
+- Bundled GUI banner installed as `~/.sd_gui_banner.png`
 - Desktop shortcut and application menu entry
-- Clean uninstall script (`~/remove.sh`)
+- Clean uninstall handled through `~/run_sd.sh`
 
 Designed for **Raspberry Pi OS**, **Debian**, and other ARM Linux distributions.
 
@@ -121,7 +122,7 @@ It uses the official PyTorch CPU wheel index and applies the same install flow.
 - Installs OpenAI CLIP
 - Patches `modules/launch_utils.py` for ARM compatibility
 - Optionally downloads default models
-- Creates the CLI launcher, GUI launcher, desktop shortcut, menu entry, and uninstall script
+- Creates the unified launcher, GUI launcher, bundled banner, desktop shortcut, and menu entry
 
 This keeps the setup consistent and repeatable.
 
@@ -182,8 +183,9 @@ GUI support is installed automatically during setup. No separate GUI installatio
 - Install ARM-related Python fixes
 - Patch WebUI launch utilities
 - Download default models when `DOWNLOAD_MODELS=1`
-- Create `~/run_sd.sh` and `~/remove.sh`
+- Create the unified launcher `~/run_sd.sh`
 - Install the Stable Diffusion GUI launcher
+- Install the bundled GUI banner
 - Create a desktop shortcut and application menu entry
 
 ---
@@ -257,14 +259,9 @@ Launch the unified launcher:
 ~/run_sd.sh
 ```
 
-Then choose:
+Then choose from the launcher menu. The installed launcher is the main control file for starting LAN mode, starting offline mode, stopping a running WebUI process, opening the WebUI, opening the models folder, uninstalling, or quitting.
 
-```text
-1) LAN mode (first run installs)
-2) Offline mode
-3) Uninstall
-q) Quit
-```
+The desktop shortcut and application menu entry launch the integrated GUI, which uses the same installed `~/run_sd.sh` workflow.
 
 ### LAN Mode
 
@@ -291,18 +288,14 @@ The setup installs an integrated GUI launcher automatically.
 Installed GUI files:
 
 - `~/.sd_gui_runner.sh`
+- `~/.sd_gui_app.py`
+- `~/.sd_gui_banner.png`
 - `~/.local/share/applications/sd-gui.desktop`
 - `~/Desktop/StableDiffusionGUI.desktop`
 
-The GUI launcher provides:
+The GUI launcher provides the same Stable Diffusion controls as the installed setup, including LAN mode, offline mode, stop running, open WebUI, open models folder, uninstall, and quit.
 
-- LAN Mode (install if needed)
-- Offline Mode
-- Uninstall
-- Stop Running
-- Quit
-
-The GUI uses `zenity` for the menu and `lxterminal` to run the selected mode in a terminal window.
+The GUI is packaged by the installer and uses the bundled banner image installed at `~/.sd_gui_banner.png`. No separate `gui.sh` or separate banner download is required when the current `setup_sd.sh` is installed directly from GitHub with `curl` or `wget`.
 
 ---
 
@@ -339,13 +332,13 @@ http://<pi-ip-address>:7860
 
 ## Uninstalling
 
-To completely remove everything:
+To completely remove everything, run:
 
 ```bash
-~/remove.sh
+~/run_sd.sh
 ```
 
-You can also select **Uninstall** from `~/run_sd.sh` or from the GUI launcher.
+Then select **Uninstall** from the launcher or from the GUI launcher.
 
 The uninstall process removes:
 
@@ -353,10 +346,11 @@ The uninstall process removes:
 - Python virtual environment
 - `~/run_sd.sh`
 - GUI launcher script
+- GUI application file
+- Bundled GUI banner
 - Desktop shortcut
 - Application menu entry
 - Temporary GUI PID file
-- `~/remove.sh`
 
 ---
 
@@ -368,7 +362,7 @@ The uninstall process removes:
 - Large models may exceed available RAM
 - First launch should be run with internet access
 - First generation can take several minutes on Raspberry Pi hardware
-- GUI launcher requires a desktop environment with `zenity` and `lxterminal`
+- GUI launcher requires a desktop environment with `zenity`, `lxterminal`, Python Tkinter, and Pillow
 
 ---
 
