@@ -7958,10 +7958,14 @@ tk.Button(bottom, text="↗  Open Web-UI\nOpen the Web-UI in your browser.", com
 tk.Button(bottom, text="Exit", command=root.destroy, fg=TEXT, bg="#0b1020", activebackground="#101a30",
           activeforeground=TEXT, bd=1, relief="solid", font=font(12, "bold"), cursor="hand2").pack(side="right", padx=sz(20), ipadx=sz(44), ipady=sz(8))
 
-root.update_idletasks()
-x = max(0, (screen_w - W) // 2)
-y = max(0, (screen_h - H) // 2)
-root.geometry(f"{W}x{H}+{x}+{y}")
+def center_window():
+    root.update_idletasks()
+    x = max(0, (screen_w - W) // 2)
+    y = max(0, (screen_h - H) // 2)
+    root.geometry(f"{W}x{H}+{x}+{y}")
+
+
+root.after(50, center_window)
 root.mainloop()
 EOF
 
