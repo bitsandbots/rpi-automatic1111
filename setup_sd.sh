@@ -7881,8 +7881,8 @@ def bordered(parent, bg, border, thickness=1):
 main = tk.Frame(root, bg=BG)
 main.pack(fill="both", expand=True, padx=sz(14), pady=sz(10))
 
-banner_outer, banner_inner = bordered(main, "#050916", PINK, 1)
-banner_outer.pack(fill="x")
+banner_inner = tk.Frame(main, bg="#050916", bd=0, highlightthickness=0)
+banner_inner.pack(fill="x")
 banner_h = max(sz(130), min(sz(205), int(H * 0.31)))
 banner_inner.configure(height=banner_h)
 banner_inner.pack_propagate(False)
