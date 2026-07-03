@@ -55,110 +55,23 @@ ask_yes_no() {
 TARGET_USER="$(get_target_user)"
 USER_HOME="$(get_home_for_user "$TARGET_USER")"
 
-DOWNLOAD_MODELS=0
-INCLUDE_GUI=1
-CREATE_DESKTOP=1
-CREATE_MENU=1
-INSTALL_ROOT="$USER_HOME"
-
-show_installer_menu() {
-  clear 2>/dev/null || true
-  cat <<MENU
+cat <<MENU
 
 Stable Diffusion Raspberry Pi Installer
 =======================================
-Use the menu below to choose install options.
-
-  1) Download included models:  $([ "$DOWNLOAD_MODELS" = "1" ] && echo "ON" || echo "OFF")
-  2) Install GUI launcher:      $([ "$INCLUDE_GUI" = "1" ] && echo "ON" || echo "OFF")
-  3) Create desktop shortcut:   $([ "$CREATE_DESKTOP" = "1" ] && echo "ON" || echo "OFF")
-  4) Create menu launcher:      $([ "$CREATE_MENU" = "1" ] && echo "ON" || echo "OFF")
-  5) Install files location:    $INSTALL_ROOT
-
-  6) Start install
-  q) Quit
+Press Enter to accept the default shown in brackets.
 
 MENU
-}
 
-pause_menu() {
-  read_tty "Press Enter to continue..." "" >/dev/null
-}
-
-while true; do
-  show_installer_menu
-  CHOICE="$(read_tty "Select an option: " "")"
-  case "${CHOICE,,}" in
-    1)
-      [ "$DOWNLOAD_MODELS" = "1" ] && DOWNLOAD_MODELS=0 || DOWNLOAD_MODELS=1
-      ;;
-    2)
-      if [ "$INCLUDE_GUI" = "1" ]; then
-        INCLUDE_GUI=0
-        CREATE_DESKTOP=0
-        CREATE_MENU=0
-      else
-        INCLUDE_GUI=1
-        CREATE_DESKTOP=1
-        CREATE_MENU=1
-      fi
-      ;;
-    3)
-      if [ "$INCLUDE_GUI" != "1" ]; then
-        echo "Desktop shortcut requires the GUI launcher."
-        pause_menu
-      else
-        [ "$CREATE_DESKTOP" = "1" ] && CREATE_DESKTOP=0 || CREATE_DESKTOP=1
-      fi
-      ;;
-    4)
-      if [ "$INCLUDE_GUI" != "1" ]; then
-        echo "Menu launcher requires the GUI launcher."
-        pause_menu
-      else
-        [ "$CREATE_MENU" = "1" ] && CREATE_MENU=0 || CREATE_MENU=1
-      fi
-      ;;
-    5)
-      NEW_ROOT="$(read_tty "Install files location [$USER_HOME]: " "$INSTALL_ROOT")"
-      NEW_ROOT="${NEW_ROOT/#\~/$USER_HOME}"
-      NEW_ROOT="$(eval echo "$NEW_ROOT")"
-      NEW_ROOT="${NEW_ROOT%/}"
-      [ -n "$NEW_ROOT" ] && INSTALL_ROOT="$NEW_ROOT"
-      ;;
-    6)
-      break
-      ;;
-    q|quit|exit)
-      echo "Install cancelled."
-      exit 0
-      ;;
-    *)
-      echo "Invalid option."
-      pause_menu
-      ;;
-  esac
-done
-
+DOWNLOAD_MODELS="$(ask_yes_no "Download included models? [y/N]: " "0")"
+INCLUDE_GUI="$(ask_yes_no "Install GUI launcher? [Y/n]: " "1")"
+CREATE_DESKTOP="$(ask_yes_no "Create desktop shortcut? [Y/n]: " "1")"
+CREATE_MENU="$(ask_yes_no "Create menu launcher? [Y/n]: " "1")"
+INSTALL_ROOT="$(read_tty "Install files location [$USER_HOME]: " "$USER_HOME")"
+INSTALL_ROOT="${INSTALL_ROOT/#\~/$USER_HOME}"
+INSTALL_ROOT="$(eval echo "$INSTALL_ROOT")"
+INSTALL_ROOT="${INSTALL_ROOT%/}"
 [ -n "$INSTALL_ROOT" ] || INSTALL_ROOT="$USER_HOME"
-
-cat <<SUMMARY
-
-Install summary
----------------
-Install files: $INSTALL_ROOT
-Models:        $([ "$DOWNLOAD_MODELS" = "1" ] && echo "on" || echo "off")
-GUI:           $([ "$INCLUDE_GUI" = "1" ] && echo "on" || echo "off")
-Desktop link:  $([ "$CREATE_DESKTOP" = "1" ] && echo "on" || echo "off")
-Menu launcher: $([ "$CREATE_MENU" = "1" ] && echo "on" || echo "off")
-
-SUMMARY
-
-CONFIRM_INSTALL="$(read_tty "Start install with these options? [Y/n]: " "y")"
-case "${CONFIRM_INSTALL,,}" in
-  y|yes|"") ;;
-  *) echo "Install cancelled."; exit 0 ;;
-esac
 
 WEBUI_DIR="$INSTALL_ROOT/stable-diffusion-webui"
 VENV_DIR="$INSTALL_ROOT/stable-diffusion-env"
