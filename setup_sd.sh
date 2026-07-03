@@ -8006,6 +8006,19 @@ if command -v gio >/dev/null 2>&1; then
   sudo -u "$TARGET_USER" gio set "$DESKTOP_SHORTCUT" metadata::trusted true 2>/dev/null || true
 fi
 
+LIBFM_CONF="$USER_HOME/.config/libfm/libfm.conf"
+mkdir -p "$(dirname "$LIBFM_CONF")"
+if [ -f "$LIBFM_CONF" ]; then
+  if grep -q '^quick_exec=' "$LIBFM_CONF"; then
+    sed -i 's/^quick_exec=.*/quick_exec=1/' "$LIBFM_CONF"
+  else
+    printf '\nquick_exec=1\n' >> "$LIBFM_CONF"
+  fi
+else
+  printf '[config]\nquick_exec=1\n' > "$LIBFM_CONF"
+fi
+chown "$TARGET_USER:$TARGET_USER" "$LIBFM_CONF"
+
 fi
 
 if [ "$INCLUDE_GUI" != "1" ] && { [ "$CREATE_MENU" = "1" ] || [ "$CREATE_DESKTOP" = "1" ]; }; then
@@ -8028,6 +8041,20 @@ EOF
   chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT" 2>/dev/null || true
   if [ "$CREATE_DESKTOP" = "1" ] && command -v gio >/dev/null 2>&1; then
     sudo -u "$TARGET_USER" gio set "$DESKTOP_SHORTCUT" metadata::trusted true 2>/dev/null || true
+  fi
+  if [ "$CREATE_DESKTOP" = "1" ]; then
+    LIBFM_CONF="$USER_HOME/.config/libfm/libfm.conf"
+    mkdir -p "$(dirname "$LIBFM_CONF")"
+    if [ -f "$LIBFM_CONF" ]; then
+      if grep -q '^quick_exec=' "$LIBFM_CONF"; then
+        sed -i 's/^quick_exec=.*/quick_exec=1/' "$LIBFM_CONF"
+      else
+        printf '\nquick_exec=1\n' >> "$LIBFM_CONF"
+      fi
+    else
+      printf '[config]\nquick_exec=1\n' > "$LIBFM_CONF"
+    fi
+    chown "$TARGET_USER:$TARGET_USER" "$LIBFM_CONF"
   fi
 fi
 
