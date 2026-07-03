@@ -8010,12 +8010,12 @@ LIBFM_CONF="$USER_HOME/.config/libfm/libfm.conf"
 mkdir -p "$(dirname "$LIBFM_CONF")"
 if [ -f "$LIBFM_CONF" ]; then
   if grep -q '^quick_exec=' "$LIBFM_CONF"; then
-    sed -i 's/^quick_exec=.*/quick_exec=1/' "$LIBFM_CONF"
+    sed -i 's/^quick_exec=.*/quick_exec=2/' "$LIBFM_CONF"
   else
-    printf '\nquick_exec=1\n' >> "$LIBFM_CONF"
+    printf '\nquick_exec=2\n' >> "$LIBFM_CONF"
   fi
 else
-  printf '[config]\nquick_exec=1\n' > "$LIBFM_CONF"
+  printf '[config]\nquick_exec=2\n' > "$LIBFM_CONF"
 fi
 chown "$TARGET_USER:$TARGET_USER" "$LIBFM_CONF"
 
@@ -8047,12 +8047,12 @@ EOF
     mkdir -p "$(dirname "$LIBFM_CONF")"
     if [ -f "$LIBFM_CONF" ]; then
       if grep -q '^quick_exec=' "$LIBFM_CONF"; then
-        sed -i 's/^quick_exec=.*/quick_exec=1/' "$LIBFM_CONF"
+        sed -i 's/^quick_exec=.*/quick_exec=2/' "$LIBFM_CONF"
       else
-        printf '\nquick_exec=1\n' >> "$LIBFM_CONF"
+        printf '\nquick_exec=2\n' >> "$LIBFM_CONF"
       fi
     else
-      printf '[config]\nquick_exec=1\n' > "$LIBFM_CONF"
+      printf '[config]\nquick_exec=2\n' > "$LIBFM_CONF"
     fi
     chown "$TARGET_USER:$TARGET_USER" "$LIBFM_CONF"
   fi
