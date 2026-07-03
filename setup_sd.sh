@@ -343,6 +343,7 @@ fi
 
 if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/sd_gui_banner.png" ]; then
   cp "$SCRIPT_DIR/sd_gui_banner.png" "$INSTALL_ROOT/.sd_gui_banner.png"
+[ -f "$SCRIPT_DIR/sd_icon.png" ] && cp "$SCRIPT_DIR/sd_icon.png" "$INSTALL_ROOT/.sd_icon.png"
 else
   cat <<'BANNER_EOF' | base64 -d > "$INSTALL_ROOT/.sd_gui_banner.png"
 iVBORw0KGgoAAAANSUhEUgAABIwAAAEeCAIAAABnohkXAAEAAElEQVR42oz9ebAlWX4ehn3fycx7
@@ -7984,6 +7985,7 @@ PY_PATCH
 chmod +x "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
 chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
 [ -f "$INSTALL_ROOT/.sd_gui_banner.png" ] && chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_gui_banner.png"
+[ -f "$INSTALL_ROOT/.sd_icon.png" ] && chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_icon.png"
 
 mkdir -p "$USER_HOME/.local/share/applications"
 mkdir -p "$USER_HOME/Desktop"
@@ -7993,7 +7995,7 @@ cat > "$LAUNCHER" << EOF
 Name=$APP_NAME
 Comment=Launch Stable Diffusion GUI
 Exec=$INSTALL_ROOT/.sd_gui_runner.sh
-Icon=utilities-terminal
+Icon=$INSTALL_ROOT/.sd_icon.png
 Terminal=false
 Type=Application
 Categories=Utility;
@@ -8002,22 +8004,6 @@ EOF
 cp "$LAUNCHER" "$DESKTOP_SHORTCUT"
 chmod +x "$DESKTOP_SHORTCUT"
 chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT"
-if command -v gio >/dev/null 2>&1; then
-  sudo -u "$TARGET_USER" gio set "$DESKTOP_SHORTCUT" metadata::trusted true 2>/dev/null || true
-fi
-
-LIBFM_CONF="$USER_HOME/.config/libfm/libfm.conf"
-mkdir -p "$(dirname "$LIBFM_CONF")"
-if [ -f "$LIBFM_CONF" ]; then
-  if grep -q '^quick_exec=' "$LIBFM_CONF"; then
-    sed -i 's/^quick_exec=.*/quick_exec=2/' "$LIBFM_CONF"
-  else
-    printf '\nquick_exec=2\n' >> "$LIBFM_CONF"
-  fi
-else
-  printf '[config]\nquick_exec=2\n' > "$LIBFM_CONF"
-fi
-chown "$TARGET_USER:$TARGET_USER" "$LIBFM_CONF"
 
 fi
 
@@ -8031,7 +8017,7 @@ if [ "$INCLUDE_GUI" != "1" ] && { [ "$CREATE_MENU" = "1" ] || [ "$CREATE_DESKTOP
 Name=$APP_NAME
 Comment=Launch Stable Diffusion CLI
 Exec=$RUN_SD_PATH
-Icon=utilities-terminal
+Icon=$INSTALL_ROOT/.sd_icon.png
 Terminal=true
 Type=Application
 Categories=Utility;
@@ -8039,23 +8025,6 @@ EOF
   [ "$CREATE_DESKTOP" = "1" ] && cp "$LAUNCHER" "$DESKTOP_SHORTCUT" && chmod +x "$DESKTOP_SHORTCUT"
   [ "$CREATE_MENU" != "1" ] && rm -f "$LAUNCHER"
   chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT" 2>/dev/null || true
-  if [ "$CREATE_DESKTOP" = "1" ] && command -v gio >/dev/null 2>&1; then
-    sudo -u "$TARGET_USER" gio set "$DESKTOP_SHORTCUT" metadata::trusted true 2>/dev/null || true
-  fi
-  if [ "$CREATE_DESKTOP" = "1" ]; then
-    LIBFM_CONF="$USER_HOME/.config/libfm/libfm.conf"
-    mkdir -p "$(dirname "$LIBFM_CONF")"
-    if [ -f "$LIBFM_CONF" ]; then
-      if grep -q '^quick_exec=' "$LIBFM_CONF"; then
-        sed -i 's/^quick_exec=.*/quick_exec=2/' "$LIBFM_CONF"
-      else
-        printf '\nquick_exec=2\n' >> "$LIBFM_CONF"
-      fi
-    else
-      printf '[config]\nquick_exec=2\n' > "$LIBFM_CONF"
-    fi
-    chown "$TARGET_USER:$TARGET_USER" "$LIBFM_CONF"
-  fi
 fi
 
 if [ "$INCLUDE_GUI" = "1" ]; then
