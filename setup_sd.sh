@@ -335,9 +335,12 @@ if [ "$INCLUDE_GUI" = "1" ]; then
 APP_NAME="Stable Diffusion GUI"
 LAUNCHER="$USER_HOME/.local/share/applications/sd-gui.desktop"
 DESKTOP_SHORTCUT="$USER_HOME/Desktop/StableDiffusionGUI.desktop"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 
-if [ -f "$SCRIPT_DIR/sd_gui_banner.png" ]; then
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/sd_gui_banner.png" ]; then
   cp "$SCRIPT_DIR/sd_gui_banner.png" "$INSTALL_ROOT/.sd_gui_banner.png"
 else
   cat <<'BANNER_EOF' | base64 -d > "$INSTALL_ROOT/.sd_gui_banner.png"
@@ -7881,8 +7884,8 @@ def bordered(parent, bg, border, thickness=1):
 main = tk.Frame(root, bg=BG)
 main.pack(fill="both", expand=True, padx=sz(14), pady=sz(10))
 
-banner_inner = tk.Frame(main, bg="#050916", bd=0, highlightthickness=0)
-banner_inner.pack(fill="x")
+banner_outer, banner_inner = bordered(main, "#050916", PINK, 1)
+banner_outer.pack(fill="x")
 banner_h = max(sz(130), min(sz(205), int(H * 0.31)))
 banner_inner.configure(height=banner_h)
 banner_inner.pack_propagate(False)
