@@ -10,8 +10,6 @@ progress() { echo -e "${YELLOW}$1${NC}"; sleep 0.4; }
 ok() { echo -e "${GREEN}$1${NC}"; }
 fail() { echo -e "${RED}$1${NC}"; }
 
-DOWNLOAD_MODELS=0
-
 get_target_user() {
   if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != "root" ]; then
     echo "$SUDO_USER"
@@ -27,20 +25,164 @@ get_home_for_user() {
   [ -d "$h" ] && echo "$h" || echo "${HOME:-/home/$u}"
 }
 
+read_tty() {
+  local prompt="$1"
+  local default="$2"
+  local answer=""
+  if [ -r /dev/tty ]; then
+    read -r -p "$prompt" answer </dev/tty || true
+  elif [ -t 0 ]; then
+    read -r -p "$prompt" answer || true
+  fi
+  echo "${answer:-$default}"
+}
+
+ask_yes_no() {
+  local prompt="$1"
+  local default="$2"
+  local answer=""
+  while true; do
+    answer="$(read_tty "$prompt" "$default")"
+    case "${answer,,}" in
+      y|yes) echo 1; return ;;
+      n|no) echo 0; return ;;
+      "") echo "$default"; return ;;
+      *) echo "Please answer y or n." >/dev/tty 2>/dev/null || echo "Please answer y or n." ;;
+    esac
+  done
+}
+
 TARGET_USER="$(get_target_user)"
 USER_HOME="$(get_home_for_user "$TARGET_USER")"
 
-WEBUI_DIR="$USER_HOME/stable-diffusion-webui"
-VENV_DIR="$USER_HOME/stable-diffusion-env"
+DOWNLOAD_MODELS=0
+INCLUDE_GUI=1
+CREATE_DESKTOP=1
+CREATE_MENU=1
+INSTALL_ROOT="$USER_HOME"
+
+show_installer_menu() {
+  clear 2>/dev/null || true
+  cat <<MENU
+
+Stable Diffusion Raspberry Pi Installer
+=======================================
+Use the menu below to choose install options.
+
+  1) Download included models:  $([ "$DOWNLOAD_MODELS" = "1" ] && echo "ON" || echo "OFF")
+  2) Install GUI launcher:      $([ "$INCLUDE_GUI" = "1" ] && echo "ON" || echo "OFF")
+  3) Create desktop shortcut:   $([ "$CREATE_DESKTOP" = "1" ] && echo "ON" || echo "OFF")
+  4) Create menu launcher:      $([ "$CREATE_MENU" = "1" ] && echo "ON" || echo "OFF")
+  5) Install files location:    $INSTALL_ROOT
+
+  6) Start install
+  q) Quit
+
+MENU
+}
+
+pause_menu() {
+  read_tty "Press Enter to continue..." "" >/dev/null
+}
+
+while true; do
+  show_installer_menu
+  CHOICE="$(read_tty "Select an option: " "")"
+  case "${CHOICE,,}" in
+    1)
+      [ "$DOWNLOAD_MODELS" = "1" ] && DOWNLOAD_MODELS=0 || DOWNLOAD_MODELS=1
+      ;;
+    2)
+      if [ "$INCLUDE_GUI" = "1" ]; then
+        INCLUDE_GUI=0
+        CREATE_DESKTOP=0
+        CREATE_MENU=0
+      else
+        INCLUDE_GUI=1
+        CREATE_DESKTOP=1
+        CREATE_MENU=1
+      fi
+      ;;
+    3)
+      if [ "$INCLUDE_GUI" != "1" ]; then
+        echo "Desktop shortcut requires the GUI launcher."
+        pause_menu
+      else
+        [ "$CREATE_DESKTOP" = "1" ] && CREATE_DESKTOP=0 || CREATE_DESKTOP=1
+      fi
+      ;;
+    4)
+      if [ "$INCLUDE_GUI" != "1" ]; then
+        echo "Menu launcher requires the GUI launcher."
+        pause_menu
+      else
+        [ "$CREATE_MENU" = "1" ] && CREATE_MENU=0 || CREATE_MENU=1
+      fi
+      ;;
+    5)
+      NEW_ROOT="$(read_tty "Install files location [$USER_HOME]: " "$INSTALL_ROOT")"
+      NEW_ROOT="${NEW_ROOT/#\~/$USER_HOME}"
+      NEW_ROOT="$(eval echo "$NEW_ROOT")"
+      NEW_ROOT="${NEW_ROOT%/}"
+      [ -n "$NEW_ROOT" ] && INSTALL_ROOT="$NEW_ROOT"
+      ;;
+    6)
+      break
+      ;;
+    q|quit|exit)
+      echo "Install cancelled."
+      exit 0
+      ;;
+    *)
+      echo "Invalid option."
+      pause_menu
+      ;;
+  esac
+done
+
+[ -n "$INSTALL_ROOT" ] || INSTALL_ROOT="$USER_HOME"
+
+cat <<SUMMARY
+
+Install summary
+---------------
+Install files: $INSTALL_ROOT
+Models:        $([ "$DOWNLOAD_MODELS" = "1" ] && echo "on" || echo "off")
+GUI:           $([ "$INCLUDE_GUI" = "1" ] && echo "on" || echo "off")
+Desktop link:  $([ "$CREATE_DESKTOP" = "1" ] && echo "on" || echo "off")
+Menu launcher: $([ "$CREATE_MENU" = "1" ] && echo "on" || echo "off")
+
+SUMMARY
+
+CONFIRM_INSTALL="$(read_tty "Start install with these options? [Y/n]: " "y")"
+case "${CONFIRM_INSTALL,,}" in
+  y|yes|"") ;;
+  *) echo "Install cancelled."; exit 0 ;;
+esac
+
+WEBUI_DIR="$INSTALL_ROOT/stable-diffusion-webui"
+VENV_DIR="$INSTALL_ROOT/stable-diffusion-env"
+RUN_SD_PATH="$INSTALL_ROOT/run_sd.sh"
+
+cat <<SUMMARY
+
+Install summary
+---------------
+Install files: $INSTALL_ROOT
+Models:        $([ "$DOWNLOAD_MODELS" = "1" ] && echo "on" || echo "off")
+GUI:           $([ "$INCLUDE_GUI" = "1" ] && echo "on" || echo "off")
+Desktop link:  $([ "$CREATE_DESKTOP" = "1" ] && echo "on" || echo "off")
+Menu launcher: $([ "$CREATE_MENU" = "1" ] && echo "on" || echo "off")
+
+SUMMARY
+
+mkdir -p "$INSTALL_ROOT"
+chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT" 2>/dev/null || true
 
 CLEANUP_ON_FAIL=1
-trap 'rm -rf "$WEBUI_DIR" "$VENV_DIR" 2>/dev/null || true' ERR
+trap '[ "$CLEANUP_ON_FAIL" = "1" ] && rm -rf "$WEBUI_DIR" "$VENV_DIR" 2>/dev/null || true' ERR
 
 progress "Detected architecture: $(uname -m)"
-
-# ============================================================
-# FIX 1: disable piwheels
-# ============================================================
 progress "Sanitizing pip configuration..."
 
 sed -i '/piwheels/d' "$USER_HOME/.config/pip/pip.conf" 2>/dev/null || true
@@ -51,12 +193,18 @@ progress "Updating system..."
 sudo apt update && sudo apt upgrade -y
 
 progress "Installing dependencies..."
-sudo apt install -y \
-  git wget curl ca-certificates \
-  python3 python3-venv python3-pip python3-dev \
-  python3-setuptools python3-pkg-resources \
-  build-essential libgl1 libglib2.0-0 \
-  python3-tk python3-pil python3-pil.imagetk fonts-dejavu-core zenity lxterminal
+APT_PACKAGES=(
+  git wget curl ca-certificates
+  python3 python3-venv python3-pip python3-dev
+  python3-setuptools python3-pkg-resources
+  build-essential libgl1 libglib2.0-0
+)
+
+if [ "$INCLUDE_GUI" = "1" ] || [ "$CREATE_DESKTOP" = "1" ] || [ "$CREATE_MENU" = "1" ]; then
+  APT_PACKAGES+=(python3-tk python3-pil python3-pil.imagetk fonts-dejavu-core zenity lxterminal)
+fi
+
+sudo apt install -y "${APT_PACKAGES[@]}"
 
 progress "Creating venv..."
 rm -rf "$VENV_DIR"
@@ -84,15 +232,9 @@ python -m pip install torch torchvision torchaudio --index-url https://download.
 progress "Installing requirements..."
 python -m pip install -r requirements.txt --index-url https://pypi.org/simple
 
-# ============================================================
-# FIX 2: correct pytorch_lightning
-# ============================================================
 python -m pip install pytorch-lightning==1.9.5 --index-url https://pypi.org/simple
-
-# ============================================================
-# FIX 3: install CLIP (missing on ARM)
-# ============================================================
 python -m pip install git+https://github.com/openai/CLIP.git --no-deps --index-url https://pypi.org/simple
+
 progress "Patching launch_utils..."
 sed -i 's#https://github.com/Stability-AI/stablediffusion.git#https://github.com/comp6062/Stability-AI-stablediffusion.git#g' modules/launch_utils.py
 sed -i 's/run_pip(f"install {clip_package}", "clip")/run_pip(f"install --no-build-isolation --no-use-pep517 {clip_package}", "clip")/g' modules/launch_utils.py
@@ -101,9 +243,6 @@ download_if_missing() {
   [ -f "$2" ] || { mkdir -p "$(dirname "$2")"; wget -O "$2" "$1"; }
 }
 
-# ============================================================
-# OPTIONAL MODEL DOWNLOADS
-# ============================================================
 if [ "$DOWNLOAD_MODELS" = "1" ]; then
   progress "Downloading models..."
 
@@ -118,45 +257,61 @@ fi
 
 deactivate || true
 
-cat <<'EOF' > "$USER_HOME/run_sd.sh"
+cat > "$RUN_SD_PATH" <<RUNEOF
 #!/bin/bash
 set -euo pipefail
 
-TARGET_USER="${SUDO_USER:-$(whoami)}"
-USER_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
+WEBUI_DIR="$WEBUI_DIR"
+VENV_DIR="$VENV_DIR"
+INSTALL_ROOT="$INSTALL_ROOT"
+RUN_SD_PATH="$RUN_SD_PATH"
 
-WEBUI_DIR="$USER_HOME/stable-diffusion-webui"
-VENV_DIR="$USER_HOME/stable-diffusion-env"
+get_lan_ip() {
+  local ip=""
+  ip="\$(ip route get 8.8.8.8 2>/dev/null | awk '{for (i=1;i<=NF;i++) if (\$i=="src") {print \$(i+1); exit}}')"
+  [ -n "\$ip" ] || ip="\$(hostname -I | awk '{print \$1}')"
+  echo "\${ip:-127.0.0.1}"
+}
 
-echo ""
-echo "1) LAN mode (first run installs)"
-echo "2) Offline mode"
-echo "3) Uninstall"
-echo "q) Quit"
-echo ""
+show_menu() {
+  echo ""
+  echo "1) LAN mode (first run installs)"
+  echo "2) Offline mode"
+  echo "3) Stop running"
+  echo "4) Uninstall"
+  echo "q) Quit"
+  echo ""
+}
 
+show_menu
 read -rp "Choice: " c
 
-case "$c" in
+case "\$c" in
   1)
-    source "$VENV_DIR/bin/activate"
-    cd "$WEBUI_DIR"
-    IP=$(hostname -I | awk '{print $1}')
-    echo "http://$IP:7860"
+    source "\$VENV_DIR/bin/activate"
+    cd "\$WEBUI_DIR"
+    IP="\$(get_lan_ip)"
+    echo "http://\$IP:7860"
     python launch.py --skip-torch-cuda-test --no-half --listen
     ;;
   2)
-    source "$VENV_DIR/bin/activate"
-    cd "$WEBUI_DIR"
+    source "\$VENV_DIR/bin/activate"
+    cd "\$WEBUI_DIR"
     python launch.py --skip-torch-cuda-test --no-half --listen --skip-install
     ;;
   3)
-    rm -rf "$WEBUI_DIR"
-    rm -rf "$VENV_DIR"
-    rm -f "$USER_HOME/run_sd.sh"
-    rm -f "$USER_HOME/.sd_gui_runner.sh"
-    rm -f "$USER_HOME/.sd_gui_app.py"
-    rm -f "$USER_HOME/.sd_gui_banner.png"
+    pkill -TERM -f "\$WEBUI_DIR/launch.py" 2>/dev/null || true
+    pkill -TERM -f "python.*launch.py.*--listen" 2>/dev/null || true
+    rm -f /tmp/sd_gui.pid
+    echo "Stable Diffusion stopped."
+    ;;
+  4)
+    rm -rf "\$WEBUI_DIR"
+    rm -rf "\$VENV_DIR"
+    rm -f "\$RUN_SD_PATH"
+    rm -f "\$INSTALL_ROOT/.sd_gui_runner.sh"
+    rm -f "\$INSTALL_ROOT/.sd_gui_app.py"
+    rm -f "\$INSTALL_ROOT/.sd_gui_banner.png"
     rm -f "$USER_HOME/.local/share/applications/sd-gui.desktop"
     rm -f "$USER_HOME/Desktop/StableDiffusionGUI.desktop"
     rm -f /tmp/sd_gui.pid
@@ -169,13 +324,12 @@ case "$c" in
     exit 1
     ;;
 esac
-EOF
+RUNEOF
 
-chmod +x "$USER_HOME/run_sd.sh"
-chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/run_sd.sh"
+chmod +x "$RUN_SD_PATH"
+chown "$TARGET_USER:$TARGET_USER" "$RUN_SD_PATH"
 
-
-# ============================================================
+if [ "$INCLUDE_GUI" = "1" ]; then
 # GUI LAUNCHER
 # ============================================================
 APP_NAME="Stable Diffusion GUI"
@@ -184,9 +338,9 @@ DESKTOP_SHORTCUT="$USER_HOME/Desktop/StableDiffusionGUI.desktop"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -f "$SCRIPT_DIR/sd_gui_banner.png" ]; then
-  cp "$SCRIPT_DIR/sd_gui_banner.png" "$USER_HOME/.sd_gui_banner.png"
+  cp "$SCRIPT_DIR/sd_gui_banner.png" "$INSTALL_ROOT/.sd_gui_banner.png"
 else
-  cat <<'BANNER_EOF' | base64 -d > "$USER_HOME/.sd_gui_banner.png"
+  cat <<'BANNER_EOF' | base64 -d > "$INSTALL_ROOT/.sd_gui_banner.png"
 iVBORw0KGgoAAAANSUhEUgAABIwAAAEeCAIAAABnohkXAAEAAElEQVR42oz9ebAlWX4ehn3fycx7
 79urqqu6urqr1+menunZMQNgAAIgCYA0AEMUaUpkUFSQtBSWFaLlCNqUggzatC3KCllShGTZYS0h
 ybIoiqZoggyKFCgAJEBgRCwz2Aazz/S+1/r2d+/NPL/Pf2TmOb+T9zWpRqOnXr338maePMtv+Ray
@@ -7566,15 +7720,15 @@ NtjhweNk4vzUR8CaqsEmoXatKreNTv05WPlfjk8ogTGrw28YohtVyNocqlDbOrbfPkcslRPXRpvQ
 ZWfQTpdH938jtSwb3DniwgAAAABJRU5ErkJggg==
 BANNER_EOF
 fi
-chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/.sd_gui_banner.png"
+chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_gui_banner.png"
 
-cat <<'EOF' > "$USER_HOME/.sd_gui_runner.sh"
+cat <<'EOF' > "$INSTALL_ROOT/.sd_gui_runner.sh"
 #!/bin/bash
 set -euo pipefail
-python3 "$HOME/.sd_gui_app.py"
+python3 "$INSTALL_ROOT/.sd_gui_app.py"
 EOF
 
-cat <<'EOF' > "$USER_HOME/.sd_gui_app.py"
+cat <<'EOF' > "$INSTALL_ROOT/.sd_gui_app.py"
 #!/usr/bin/env python3
 import os
 import socket
@@ -7592,10 +7746,10 @@ except Exception:
     ImageTk = None
 
 HOME = os.path.expanduser("~")
-SCRIPT = os.path.join(HOME, "run_sd.sh")
-WEBUI_DIR = os.path.join(HOME, "stable-diffusion-webui")
+SCRIPT = "__RUN_SD_PATH__"
+WEBUI_DIR = "__WEBUI_DIR__"
 PID_FILE = "/tmp/sd_gui.pid"
-BANNER_IMAGE = os.path.join(HOME, ".sd_gui_banner.png")
+BANNER_IMAGE = "__BANNER_PATH__"
 
 BG = "#050814"
 PANEL = "#050b18"
@@ -7806,9 +7960,19 @@ y = max(0, (screen_h - H) // 2)
 root.geometry(f"{W}x{H}+{x}+{y}")
 root.mainloop()
 EOF
-chmod +x "$USER_HOME/.sd_gui_runner.sh" "$USER_HOME/.sd_gui_app.py"
-chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/.sd_gui_runner.sh" "$USER_HOME/.sd_gui_app.py"
-[ -f "$USER_HOME/.sd_gui_banner.png" ] && chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/.sd_gui_banner.png"
+
+python3 - <<PY_PATCH
+from pathlib import Path
+app = Path("$INSTALL_ROOT/.sd_gui_app.py")
+s = app.read_text()
+s = s.replace("__RUN_SD_PATH__", "$INSTALL_ROOT/run_sd.sh")
+s = s.replace("__WEBUI_DIR__", "$WEBUI_DIR")
+s = s.replace("__BANNER_PATH__", "$INSTALL_ROOT/.sd_gui_banner.png")
+app.write_text(s)
+PY_PATCH
+chmod +x "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
+chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
+[ -f "$INSTALL_ROOT/.sd_gui_banner.png" ] && chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_gui_banner.png"
 
 mkdir -p "$USER_HOME/.local/share/applications"
 mkdir -p "$USER_HOME/Desktop"
@@ -7817,7 +7981,7 @@ cat > "$LAUNCHER" << EOF
 [Desktop Entry]
 Name=$APP_NAME
 Comment=Launch Stable Diffusion GUI
-Exec=$USER_HOME/.sd_gui_runner.sh
+Exec=$INSTALL_ROOT/.sd_gui_runner.sh
 Icon=utilities-terminal
 Terminal=false
 Type=Application
@@ -7828,6 +7992,33 @@ cp "$LAUNCHER" "$DESKTOP_SHORTCUT"
 chmod +x "$DESKTOP_SHORTCUT"
 chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT"
 
+fi
+
+if [ "$INCLUDE_GUI" != "1" ] && { [ "$CREATE_MENU" = "1" ] || [ "$CREATE_DESKTOP" = "1" ]; }; then
+  APP_NAME="Stable Diffusion CLI"
+  LAUNCHER="$USER_HOME/.local/share/applications/sd-gui.desktop"
+  DESKTOP_SHORTCUT="$USER_HOME/Desktop/StableDiffusionGUI.desktop"
+  mkdir -p "$USER_HOME/.local/share/applications" "$USER_HOME/Desktop"
+  cat > "$LAUNCHER" <<EOF
+[Desktop Entry]
+Name=$APP_NAME
+Comment=Launch Stable Diffusion CLI
+Exec=$RUN_SD_PATH
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Utility;
+EOF
+  [ "$CREATE_DESKTOP" = "1" ] && cp "$LAUNCHER" "$DESKTOP_SHORTCUT" && chmod +x "$DESKTOP_SHORTCUT"
+  [ "$CREATE_MENU" != "1" ] && rm -f "$LAUNCHER"
+  chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT" 2>/dev/null || true
+fi
+
+if [ "$INCLUDE_GUI" = "1" ]; then
+  [ "$CREATE_DESKTOP" != "1" ] && rm -f "$USER_HOME/Desktop/StableDiffusionGUI.desktop"
+  [ "$CREATE_MENU" != "1" ] && rm -f "$USER_HOME/.local/share/applications/sd-gui.desktop"
+fi
+
 CLEANUP_ON_FAIL=0
 ok "Setup complete."
-ok "Run: ~/run_sd.sh"
+ok "Run: $RUN_SD_PATH"
