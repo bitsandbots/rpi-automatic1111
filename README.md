@@ -14,373 +14,180 @@ a guided installer, integrated GUI launcher, bundled banner artwork, unified lau
 
 ---
 
-## Table of Contents
+## Index
 
-- [Overview](#overview)
-- [Supported Architectures](#supported-architectures)
-- [ARM64 aarch64 recommended](#arm64-aarch64-recommended)
-- [ARM32 armv7l best-effort](#arm32-armv7l-best-effort)
-- [Architecture Detection & Install Logic](#architecture-detection--install-logic)
-- [System Requirements](#system-requirements)
-- [Installation](#installation)
-- [Model Download Control (Setup Script)](#model-download-control-setup-script)
-- [Running Stable Diffusion](#running-stable-diffusion)
-- [GUI Launcher](#gui-launcher)
-- [Offline Mode](#offline-mode)
-- [Uninstalling](#uninstalling)
-- [Known Limitations](#known-limitations)
-- [Credits](#credits)
-- [Recommendation Summary](#recommendation-summary)
+1. [Remote install](#1-remote-install)
+2. [Interactive installer menu](#2-interactive-installer-menu)
+3. [Run after install](#3-run-after-install)
+4. [First run note](#4-first-run-note)
+5. [GUI launcher](#5-gui-launcher)
+6. [Model downloads](#6-model-downloads)
+7. [Uninstall](#7-uninstall)
+8. [Included files](#8-included-files)
+9. [Notes](#9-notes)
 
----
+## 1. Remote install
 
-## Overview
-
-This setup installs and configures:
-
-- AUTOMATIC1111 Stable Diffusion WebUI
-- Python virtual environment
-- CPU-only PyTorch (no CUDA / no ROCm)
-- Required Python packages and ARM-related fixes
-- Unified launcher (`~/run_sd.sh`)
-- Integrated GUI launcher (`~/.sd_gui_runner.sh`)
-- Bundled GUI banner installed as `~/.sd_gui_banner.png`
-- Desktop shortcut and application menu entry
-- Clean uninstall handled through `~/run_sd.sh`
-
-Designed for **Raspberry Pi OS**, **Debian**, and other ARM Linux distributions.
-
----
-
-## Supported Architectures
-
-The installer prints your detected CPU architecture during setup and installs
-CPU-only PyTorch from the official PyTorch CPU wheel index.
-
----
-
-### ARM64 aarch64 recommended
-
-This is the **preferred and most reliable configuration**.
-
-**Details:**
-- Uses **official CPU-only PyTorch wheels**
-- Installed from the official PyTorch CPU index
-- Fully compatible with modern Python versions
-
-**Why ARM64 is recommended:**
-- Faster installation
-- Fewer dependency issues
-- Better performance
-- Works best on Raspberry Pi 4 / 5 (64-bit OS)
-
----
-
-### ARM32 armv7l best-effort
-
-ARM32 (32-bit Raspberry Pi OS) support is **best-effort only**.
-
-**How it works:**
-- The setup uses the same CPU-only PyTorch install path
-- No separate ARM32 wheel fallback is included
-- No source builds are attempted by the setup script
-
-**Limitations:**
-- ARM32 may not have compatible PyTorch wheels available
-- Significantly slower than ARM64
-- Higher memory pressure
-- More likely to fail during Python package installation
-
-**If installation fails on ARM32:**
-- Switch to a **64-bit Raspberry Pi OS**
-- Re-run the setup script on the 64-bit OS
-
----
-
-## Architecture Detection & Install Logic
-
-This setup script displays the detected architecture using:
-
-```bash
-uname -m
-```
-
-The current setup does **not** use separate install branches for ARM64 and ARM32.
-It uses the official PyTorch CPU wheel index and applies the same install flow.
-
-### Installation Behavior
-
-- Removes piwheels references from pip configuration
-- Updates and upgrades the system packages
-- Installs required dependencies
-- Creates a clean Python virtual environment
-- Clones AUTOMATIC1111 Stable Diffusion WebUI
-- Checks out a pinned WebUI commit
-- Installs CPU-only PyTorch
-- Installs WebUI requirements
-- Installs `pytorch-lightning==1.9.5`
-- Installs OpenAI CLIP
-- Patches `modules/launch_utils.py` for ARM compatibility
-- Optionally downloads default models
-- Creates the unified launcher, GUI launcher, bundled banner, desktop shortcut, and menu entry
-
-This keeps the setup consistent and repeatable.
-
----
-
-## System Requirements
-
-### Minimum
-- Raspberry Pi 4 / 5 or other ARM SBC
-- 4 GB RAM (8 GB recommended)
-- Internet connection (for install)
-
-### Strongly Recommended
-- **64-bit Raspberry Pi OS**
-- Desktop environment if you want to use the GUI launcher
-
-### Required Packages Installed By Setup
-- python3
-- python3-venv
-- python3-pip
-- python3-dev
-- git
-- curl
-- wget
-- build-essential
-- libgl1
-- libglib2.0-0
-- zenity
-- lxterminal
-
----
-
-## Installation
-
-Install everything with **one command**:
+Install directly from GitHub with `curl`:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/setup_sd.sh | bash
 ```
 
-Or using wget:
+or with `wget`:
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/setup_sd.sh | bash
 ```
 
-GUI support is installed automatically during setup. No separate GUI installation is required.
+This installer is self-contained for remote bash installs. The GUI banner is embedded inside `setup_sd.sh`, so the remote install does not need a separate banner download.
 
-### The installer will
+## 2. Interactive installer menu
 
-- Install system dependencies
-- Remove piwheels entries from pip configuration
-- Create a Python virtual environment
-- Clone AUTOMATIC1111 Stable Diffusion WebUI
-- Check out the pinned WebUI version used by this installer
-- Install CPU-only PyTorch
-- Install Python requirements
-- Install ARM-related Python fixes
-- Patch WebUI launch utilities
-- Download default models when `DOWNLOAD_MODELS=1`
-- Create the unified launcher `~/run_sd.sh`
-- Install the Stable Diffusion GUI launcher
-- Install the bundled GUI banner
-- Create a desktop shortcut and application menu entry
+The installer opens a menu before installing:
 
----
+```text
+Stable Diffusion Raspberry Pi Installer
+=======================================
+Use the menu below to choose install options.
 
-# Model Download Control (Setup Script)
+  1) Download included models:  OFF
+  2) Install GUI launcher:      ON
+  3) Create desktop shortcut:   ON
+  4) Create menu launcher:      ON
+  5) Install files location:    /home/admin
 
-## Default Model Download Behavior
-
-By default, the setup script **automatically downloads two example Stable Diffusion models** during installation.  
-This allows the WebUI to be used immediately after setup completes.
-
-The default downloaded models are:
-
-- CyberRealistic V7.0 FP16
-- Realistic Vision V5.1 Inpainting
-
----
-
-## Enable Model Downloads (Default)
-
-To enable model downloads, set:
-
-### Enabled (Download Models During Setup)
-
-```bash
-DOWNLOAD_MODELS=1
+  6) Start install
+  q) Quit
 ```
 
-When enabled:
-- Missing models are downloaded automatically
-- Existing models are never overwritten
-- Setup remains non-interactive
+Options can be toggled before install starts.
 
----
-
-## Disable Model Downloads During Setup
-
-If you prefer to **skip downloading models during installation** (for example, for offline systems or when supplying your own models), you can disable this behavior.
-
-### Disabled (No Model Downloads)
+Default install location is your home folder:
 
 ```bash
-DOWNLOAD_MODELS=0
+~/
 ```
 
-When disabled:
-- No models are downloaded during setup
-- Installation still completes normally
-- The WebUI can be launched after setup
-- Models can be added later manually
-
----
-
-## Adding Models Manually (Optional)
-
-If model downloads are disabled, place your `.ckpt` or `.safetensors` files in:
+With the default location, the installer creates:
 
 ```bash
-~/stable-diffusion-webui/models/Stable-diffusion/
+~/stable-diffusion-webui
+~/stable-diffusion-env
+~/run_sd.sh
 ```
 
-Restart the WebUI after adding new models.
+If you choose a different install location, those files are created inside that folder instead.
 
----
+## 3. Run after install
 
-## Running Stable Diffusion
-
-Launch the unified launcher:
+Use:
 
 ```bash
 ~/run_sd.sh
 ```
 
-Then choose from the launcher menu. The installed launcher is the main control file for starting LAN mode, starting offline mode, stopping a running WebUI process, opening the WebUI, opening the models folder, uninstalling, or quitting.
-
-The desktop shortcut and application menu entry launch the integrated GUI, which uses the same installed `~/run_sd.sh` workflow.
-
-### LAN Mode
-
-LAN mode starts WebUI with:
+If you installed to a custom folder, run:
 
 ```bash
---skip-torch-cuda-test --no-half --listen
+/path/to/install/run_sd.sh
 ```
 
-The launcher prints the Raspberry Pi LAN URL, usually:
+The run menu includes:
 
-```text
-http://<pi-ip-address>:7860
-```
+1. LAN mode - first run installs needed WebUI files and allows LAN access
+2. Offline mode - starts without dependency checks or installs
+3. Stop running - stops the running WebUI process
+4. Uninstall - removes WebUI, venv, launcher files, and shortcuts
 
-**Important:** After installation completes, run Stable Diffusion once using **LAN Mode while connected to the internet**. During this first launch, AUTOMATIC1111 may download and install additional required files and dependencies. After the first successful online launch, Stable Diffusion can be run using **Offline Mode** without internet access.
+## 4. First run note
 
----
+The first time you run Stable Diffusion after install, run LAN mode once while online. This allows Automatic1111 to install needed runtime files. After the first successful LAN run, offline mode can be used without checking or installing dependencies.
 
-## GUI Launcher
+## 5. GUI launcher
 
-The setup installs an integrated GUI launcher automatically.
-
-Installed GUI files:
-
-- `~/.sd_gui_runner.sh`
-- `~/.sd_gui_app.py`
-- `~/.sd_gui_banner.png`
-- `~/.local/share/applications/sd-gui.desktop`
-- `~/Desktop/StableDiffusionGUI.desktop`
-
-The GUI launcher provides the same Stable Diffusion controls as the installed setup, including LAN mode, offline mode, stop running, open WebUI, open models folder, uninstall, and quit.
-
-The GUI is packaged by the installer and uses the bundled banner image installed at `~/.sd_gui_banner.png`. No separate `gui.sh` or separate banner download is required when the current `setup_sd.sh` is installed directly from GitHub with `curl` or `wget`.
-
----
-
-## Offline Mode
-
-Offline mode runs Stable Diffusion using already installed files and models.
-
-Offline mode starts WebUI with:
+If GUI launcher is enabled, the installer creates:
 
 ```bash
---skip-torch-cuda-test --no-half --listen --skip-install
+.sd_gui_app.py
+.sd_gui_runner.sh
+.sd_gui_banner.png
 ```
 
-Offline mode:
+These are placed in the selected install location.
 
-- Uses already downloaded models
-- Skips package installation and updates
-- Can run without internet after the first successful setup and first launch
-- Runs on port `7860`
+If desktop shortcut is enabled, the installer creates:
 
-Open WebUI from the Pi itself with:
-
-```text
-http://127.0.0.1:7860
+```bash
+~/Desktop/StableDiffusionGUI.desktop
 ```
 
-Or from another device on the same LAN with:
+If menu launcher is enabled, the installer creates:
 
-```text
-http://<pi-ip-address>:7860
+```bash
+~/.local/share/applications/sd-gui.desktop
 ```
 
----
+The GUI includes:
 
-## Uninstalling
+- LAN Mode
+- Offline Mode
+- Stop Running
+- Uninstall
+- Open Web-UI
 
-To completely remove everything, run:
+## 6. Model downloads
+
+Model downloads are optional in the installer.
+
+If enabled, the installer downloads:
+
+- `CyberRealistic_V7.0_FP16.safetensors`
+- `Realistic_Vision_V5.1-inpainting.safetensors`
+
+If disabled, no models are downloaded during setup. You can add models later in:
+
+```bash
+stable-diffusion-webui/models/Stable-diffusion/
+```
+
+## 7. Uninstall
+
+Run:
 
 ```bash
 ~/run_sd.sh
 ```
 
-Then select **Uninstall** from the launcher or from the GUI launcher.
+Then choose:
 
-The uninstall process removes:
+```bash
+4) Uninstall
+```
 
-- Stable Diffusion WebUI
-- Python virtual environment
-- `~/run_sd.sh`
-- GUI launcher script
-- GUI application file
-- Bundled GUI banner
-- Desktop shortcut
-- Application menu entry
-- Temporary GUI PID file
+If installed to a custom folder, run that folder's `run_sd.sh` and choose uninstall.
 
----
+The uninstaller removes:
 
-## Known Limitations
+- `stable-diffusion-webui`
+- `stable-diffusion-env`
+- `run_sd.sh`
+- GUI helper files
+- desktop shortcut
+- menu launcher
+- `/tmp/sd_gui.pid`
 
-- CPU-only inference (no GPU acceleration)
-- ARM64 is strongly recommended
-- ARM32 is best-effort only
-- Large models may exceed available RAM
-- First launch should be run with internet access
-- First generation can take several minutes on Raspberry Pi hardware
-- GUI launcher requires a desktop environment with `zenity`, `lxterminal`, Python Tkinter, and Pillow
+## 8. Included files
 
----
+- `setup_sd.sh` - interactive self-contained remote-bash installer
+- `sd_gui_banner.png` - GUI banner artwork for local reference/local extracted installs
+- `README.md` - this documentation
 
-## Credits
+Remote install only requires `setup_sd.sh`.
 
-- AUTOMATIC1111 – Stable Diffusion WebUI
-- PyTorch Team – CPU wheel support
-- OpenAI – CLIP
-- Raspberry Pi community
+## 9. Notes
 
----
-
-## Recommendation Summary
-
-| Architecture | Status |
-|-------------|--------|
-| ARM64 (aarch64) | Recommended |
-| ARM32 (armv7l) | Best effort only |
-
-If installation fails on ARM32, switch to a **64-bit OS**.  
-That is the intended and supported upgrade path.
+- This installer is intended for Raspberry Pi OS 64-bit.
+- CPU-only PyTorch is installed.
+- The WebUI is pinned to the known working Automatic1111 commit used by this setup.
+- Offline mode should be used only after LAN mode has completed successfully once.
