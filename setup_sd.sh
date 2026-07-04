@@ -7911,7 +7911,7 @@ panel_outer.pack(fill="both", expand=True, pady=(sz(10), 0))
 
 header = tk.Frame(panel, bg=PANEL)
 header.pack(fill="x", padx=sz(18), pady=(sz(9), sz(4)))
-tk.Label(header, text="🚀  Select an Action", fg=CYAN, bg=PANEL, font=font(18, "bold")).pack(anchor="w")
+tk.Label(header, text="Select an Action", fg=CYAN, bg=PANEL, font=font(18, "bold")).pack(anchor="w")
 
 bottom_h = sz(58)
 card_h = max(sz(210), H - banner_h - bottom_h - sz(116))
