@@ -3,7 +3,6 @@
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%20%2F%20ARM-blue)
 ![CPU](https://img.shields.io/badge/acceleration-CPU--only-orange)
 ![ARM64](https://img.shields.io/badge/ARM64-aarch64-success)
-![ARM32](https://img.shields.io/badge/ARM32-armv7l-yellow)
 ![License](https://img.shields.io/badge/license-MIT-informational)
 
 This repository provides a **fully automated setup** for running  
