@@ -7985,6 +7985,13 @@ chmod +x "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
 chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
 [ -f "$INSTALL_ROOT/.sd_gui_banner.png" ] && chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_gui_banner.png"
 
+ICON_PATH="$USER_HOME/.local/share/icons/sd_icon.png"
+mkdir -p "$USER_HOME/.local/share/icons"
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/sd_icon.png" ]; then
+  cp "$SCRIPT_DIR/sd_icon.png" "$ICON_PATH"
+fi
+[ -f "$ICON_PATH" ] && chown "$TARGET_USER:$TARGET_USER" "$ICON_PATH"
+
 mkdir -p "$USER_HOME/.local/share/applications"
 mkdir -p "$USER_HOME/Desktop"
 
@@ -7993,7 +8000,7 @@ cat > "$LAUNCHER" << EOF
 Name=$APP_NAME
 Comment=Launch Stable Diffusion GUI
 Exec=$INSTALL_ROOT/.sd_gui_runner.sh
-Icon=utilities-terminal
+Icon=$ICON_PATH
 Terminal=false
 Type=Application
 Categories=Utility;
@@ -8009,13 +8016,23 @@ if [ "$INCLUDE_GUI" != "1" ] && { [ "$CREATE_MENU" = "1" ] || [ "$CREATE_DESKTOP
   APP_NAME="Stable Diffusion CLI"
   LAUNCHER="$USER_HOME/.local/share/applications/sd-gui.desktop"
   DESKTOP_SHORTCUT="$USER_HOME/Desktop/StableDiffusionGUI.desktop"
-  mkdir -p "$USER_HOME/.local/share/applications" "$USER_HOME/Desktop"
+  SCRIPT_DIR=""
+  SCRIPT_PATH="${0:-}"
+  if [ -n "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+  fi
+  ICON_PATH="$USER_HOME/.local/share/icons/sd_icon.png"
+  mkdir -p "$USER_HOME/.local/share/applications" "$USER_HOME/Desktop" "$USER_HOME/.local/share/icons"
+  if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/sd_icon.png" ]; then
+    cp "$SCRIPT_DIR/sd_icon.png" "$ICON_PATH"
+  fi
+  [ -f "$ICON_PATH" ] && chown "$TARGET_USER:$TARGET_USER" "$ICON_PATH"
   cat > "$LAUNCHER" <<EOF
 [Desktop Entry]
 Name=$APP_NAME
 Comment=Launch Stable Diffusion CLI
 Exec=$RUN_SD_PATH
-Icon=utilities-terminal
+Icon=$ICON_PATH
 Terminal=true
 Type=Application
 Categories=Utility;
