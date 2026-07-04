@@ -112,6 +112,7 @@ If GUI launcher is enabled, the installer creates:
 .sd_gui_runner.sh
 .sd_gui_banner.png
 ~/.local/share/icons/sd_icon.png
+~/.local/share/icons/hicolor/256x256/apps/sd_icon.png
 ```
 
 These are placed in the selected install location.
@@ -122,10 +123,10 @@ If desktop shortcut is enabled, the installer creates:
 ~/Desktop/StableDiffusionGUI.desktop
 ```
 
-The desktop shortcut uses:
+The desktop shortcut uses the installed icon name:
 
 ```bash
-~/.local/share/icons/sd_icon.png
+sd_icon
 ```
 
 If menu launcher is enabled, the installer creates:
@@ -134,10 +135,10 @@ If menu launcher is enabled, the installer creates:
 ~/.local/share/applications/sd-gui.desktop
 ```
 
-The menu launcher uses:
+The menu launcher uses the installed icon name:
 
 ```bash
-~/.local/share/icons/sd_icon.png
+sd_icon
 ```
 
 The GUI includes:
