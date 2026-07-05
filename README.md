@@ -1,15 +1,19 @@
-# Stable Diffusion WebUI – Raspberry Pi (ARM)
+# Stable Diffusion WebUI – Raspberry Pi 5+ (ARM)
 
-![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%20%2F%20ARM-blue)
+![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%205%2B%20%2F%20ARM-blue)
 ![CPU](https://img.shields.io/badge/acceleration-CPU--only-orange)
 ![ARM64](https://img.shields.io/badge/ARM64-aarch64-success)
 ![License](https://img.shields.io/badge/license-MIT-informational)
 
 This repository provides a **fully automated setup** for running  
-**AUTOMATIC1111 Stable Diffusion WebUI** (AI image generator), on Raspberry Pi and other ARM-based Linux systems.
+**AUTOMATIC1111 Stable Diffusion WebUI** (AI image generator), on Raspberry Pi 5 or newer ARM-based Raspberry Pi systems.
 
 It supports **CPU-only inference**, is optimized for ARM environments, and includes
 a guided installer, integrated GUI launcher, bundled banner artwork, unified launcher, and clean uninstall process.
+
+> **Hardware Requirement**
+>
+> This installer is designed and supported for **Raspberry Pi 5 or newer**. Earlier Raspberry Pi models are not supported by this project.
 
 ---
 
@@ -200,6 +204,10 @@ The uninstaller removes:
 Remote install only requires `setup_sd.sh`.
 
 ## 9. Notes
+
+- Designed for **Raspberry Pi 5 or newer** running Raspberry Pi OS (64-bit).
+- Earlier Raspberry Pi models are not supported.
+
 
 - This installer is intended for Raspberry Pi OS 64-bit.
 - CPU-only PyTorch is installed.

@@ -9694,6 +9694,32 @@ cp "$LAUNCHER" "$DESKTOP_SHORTCUT"
 chmod +x "$DESKTOP_SHORTCUT"
 chown "$TARGET_USER:$TARGET_USER" "$LAUNCHER" "$DESKTOP_SHORTCUT"
 
+configure_desktop_execute_prompt() {
+  set_quick_exec_value() {
+    CONF_FILE="$1"
+    CONF_SECTION="$2"
+    mkdir -p "$(dirname "$CONF_FILE")"
+    if [ -f "$CONF_FILE" ]; then
+      if grep -q '^quick_exec=' "$CONF_FILE"; then
+        sed -i 's/^quick_exec=.*/quick_exec=1/' "$CONF_FILE"
+      elif grep -q "^\[$CONF_SECTION\]" "$CONF_FILE"; then
+        sed -i "/^\[$CONF_SECTION\]/a quick_exec=1" "$CONF_FILE"
+      else
+        printf '\n[%s]\nquick_exec=1\n' "$CONF_SECTION" >> "$CONF_FILE"
+      fi
+    else
+      printf '[%s]\nquick_exec=1\n' "$CONF_SECTION" > "$CONF_FILE"
+    fi
+    chown "$TARGET_USER:$TARGET_USER" "$CONF_FILE" 2>/dev/null || true
+  }
+
+  set_quick_exec_value "$USER_HOME/.config/libfm/libfm.conf" "config"
+  set_quick_exec_value "$USER_HOME/.config/pcmanfm/LXDE-pi/pcmanfm.conf" "config"
+  set_quick_exec_value "$USER_HOME/.config/pcmanfm/LXDE/pcmanfm.conf" "config"
+  set_quick_exec_value "$USER_HOME/.config/pcmanfm/default/pcmanfm.conf" "config"
+}
+configure_desktop_execute_prompt
+
 fi
 
 if [ "$INCLUDE_GUI" != "1" ] && { [ "$CREATE_MENU" = "1" ] || [ "$CREATE_DESKTOP" = "1" ]; }; then
@@ -9730,3 +9756,6 @@ fi
 CLEANUP_ON_FAIL=0
 ok "Setup complete."
 ok "Run: $RUN_SD_PATH"
+sync
+ok "Restarting to finalize desktop launcher configuration."
+sudo reboot
