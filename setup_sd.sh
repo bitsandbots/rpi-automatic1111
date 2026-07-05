@@ -7814,18 +7814,11 @@ def run_mode(mode):
 def stop_run():
     if os.path.exists(PID_FILE):
         try:
-            with open(PID_FILE, "r", encoding="utf-8") as f:
-                pid = int(f.read().strip())
-            for args in (["kill", "-TERM", f"-{pid}"], ["pkill", "-TERM", "-P", str(pid)], ["kill", str(pid)]):
-                subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass
-        try:
             os.remove(PID_FILE)
         except OSError:
             pass
 
-    for pattern in (os.path.join(WEBUI_DIR, "launch.py"), "python.*launch.py.*--listen"):
+    for pattern in ("python.*launch.py.*--listen", "python.*launch.py.*--skip-torch-cuda-test"):
         subprocess.run(["pkill", "-TERM", "-f", pattern], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     root.after(2000, force_stop)
     notify("Stable Diffusion stopped")
