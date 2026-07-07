@@ -55,7 +55,7 @@ ask_yes_no() {
 TARGET_USER="$(get_target_user)"
 USER_HOME="$(get_home_for_user "$TARGET_USER")"
 
-DOWNLOAD_MODELS=0
+DOWNLOAD_MODELS=1
 INCLUDE_GUI=1
 CREATE_DESKTOP=1
 CREATE_MENU=1
