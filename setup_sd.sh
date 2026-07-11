@@ -121,8 +121,10 @@ while true; do
       ;;
     5)
       NEW_ROOT="$(read_tty "Install files location [$USER_HOME]: " "$INSTALL_ROOT")"
-      NEW_ROOT="${NEW_ROOT/#\~/$USER_HOME}"
-      NEW_ROOT="$(eval echo "$NEW_ROOT")"
+      case "$NEW_ROOT" in
+        "~") NEW_ROOT="$USER_HOME" ;;
+        "~/"*) NEW_ROOT="$USER_HOME/${NEW_ROOT#~/}" ;;
+      esac
       NEW_ROOT="${NEW_ROOT%/}"
       [ -n "$NEW_ROOT" ] && INSTALL_ROOT="$NEW_ROOT"
       ;;
@@ -163,6 +165,50 @@ esac
 WEBUI_DIR="$INSTALL_ROOT/stable-diffusion-webui"
 VENV_DIR="$INSTALL_ROOT/stable-diffusion-env"
 RUN_SD_PATH="$INSTALL_ROOT/run_sd.sh"
+STAGE_TAG=".sd-install-$$"
+STAGE_WEBUI_DIR="$INSTALL_ROOT/$STAGE_TAG-webui"
+STAGE_VENV_DIR="$INSTALL_ROOT/$STAGE_TAG-env"
+BACKUP_WEBUI_DIR="$INSTALL_ROOT/.sd-backup-webui-$$"
+BACKUP_VENV_DIR="$INSTALL_ROOT/.sd-backup-env-$$"
+SWAP_STARTED=0
+
+validate_platform() {
+  local arch model os_id os_version available_kb required_kb mem_kb
+  arch="$(uname -m)"
+  [ "$arch" = "aarch64" ] || { fail "Unsupported architecture: $arch. Raspberry Pi OS 64-bit (aarch64) is required."; exit 1; }
+
+  model="$(tr -d '\0' </proc/device-tree/model 2>/dev/null || true)"
+  case "$model" in
+    *"Raspberry Pi 5"*|*"Raspberry Pi 500"*|*"Raspberry Pi Compute Module 5"*) ;;
+    *) fail "Unsupported hardware: ${model:-unknown}. Raspberry Pi 5 or newer is required."; exit 1 ;;
+  esac
+
+  os_id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
+  os_version="$(. /etc/os-release 2>/dev/null; printf '%s' "${VERSION_CODENAME:-}")"
+  case "$os_id" in
+    raspbian|debian|ubuntu) ;;
+    *) fail "Unsupported operating system: ${os_id:-unknown}. Raspbian, Debian, or Ubuntu is required."; exit 1 ;;
+  esac
+
+  available_kb="$(df -Pk "$INSTALL_ROOT" | awk 'NR==2 {print $4}')"
+  required_kb=$(( DOWNLOAD_MODELS == 1 ? 25 * 1024 * 1024 : 15 * 1024 * 1024 ))
+  [ "${available_kb:-0}" -ge "$required_kb" ] || { fail "Insufficient free disk space. At least $((required_kb / 1024 / 1024)) GiB is required."; exit 1; }
+
+  mem_kb="$(awk '/MemTotal:/ {print $2}' /proc/meminfo)"
+  [ "${mem_kb:-0}" -ge $((4 * 1024 * 1024)) ] || { fail "At least 4 GiB of RAM is required."; exit 1; }
+}
+
+rollback_install() {
+  local status=$?
+  rm -rf "$STAGE_WEBUI_DIR" "$STAGE_VENV_DIR" 2>/dev/null || true
+  if [ "$SWAP_STARTED" = "1" ]; then
+    rm -rf "$WEBUI_DIR" "$VENV_DIR" 2>/dev/null || true
+    [ -d "$BACKUP_WEBUI_DIR" ] && mv "$BACKUP_WEBUI_DIR" "$WEBUI_DIR"
+    [ -d "$BACKUP_VENV_DIR" ] && mv "$BACKUP_VENV_DIR" "$VENV_DIR"
+  fi
+  exit "$status"
+}
+trap rollback_install ERR INT TERM
 
 cat <<SUMMARY
 
@@ -178,19 +224,17 @@ SUMMARY
 
 mkdir -p "$INSTALL_ROOT"
 chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT" 2>/dev/null || true
+validate_platform
 
-CLEANUP_ON_FAIL=1
-trap '[ "$CLEANUP_ON_FAIL" = "1" ] && rm -rf "$WEBUI_DIR" "$VENV_DIR" 2>/dev/null || true' ERR
-
-progress "Detected architecture: $(uname -m)"
+progress "Detected supported platform: $(tr -d '\0' </proc/device-tree/model) / $(uname -m)"
 progress "Sanitizing pip configuration..."
 
 sed -i '/piwheels/d' "$USER_HOME/.config/pip/pip.conf" 2>/dev/null || true
 sed -i '/piwheels/d' "$USER_HOME/.pip/pip.conf" 2>/dev/null || true
 sudo sed -i '/piwheels/d' /etc/pip.conf 2>/dev/null || true
 
-progress "Updating system..."
-sudo apt update && sudo apt upgrade -y
+progress "Refreshing package lists..."
+sudo apt update
 
 progress "Installing dependencies..."
 APT_PACKAGES=(
@@ -206,11 +250,11 @@ fi
 
 sudo apt install -y "${APT_PACKAGES[@]}"
 
-progress "Creating venv..."
-rm -rf "$VENV_DIR"
-sudo -u "$TARGET_USER" python3 -m venv "$VENV_DIR"
+progress "Creating staged venv..."
+rm -rf "$STAGE_VENV_DIR" "$STAGE_WEBUI_DIR"
+sudo -u "$TARGET_USER" python3 -m venv "$STAGE_VENV_DIR"
 
-source "$VENV_DIR/bin/activate"
+source "$STAGE_VENV_DIR/bin/activate"
 
 export PIP_CONFIG_FILE=/dev/null
 export PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -219,11 +263,10 @@ export PIP_NO_INPUT=1
 progress "Upgrading pip..."
 python -m pip install -U "pip<24.1" "setuptools<70" wheel packaging
 
-progress "Cloning WebUI..."
-rm -rf "$WEBUI_DIR"
-sudo -u "$TARGET_USER" git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git "$WEBUI_DIR"
+progress "Cloning WebUI into staging..."
+sudo -u "$TARGET_USER" git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git "$STAGE_WEBUI_DIR"
 
-cd "$WEBUI_DIR"
+cd "$STAGE_WEBUI_DIR"
 sudo -u "$TARGET_USER" git checkout 82a973c04367123ae98bd9abdf80d9eda9b910e2
 
 progress "Installing PyTorch..."
@@ -233,14 +276,21 @@ progress "Installing requirements..."
 python -m pip install -r requirements.txt --index-url https://pypi.org/simple
 
 python -m pip install pytorch-lightning==1.9.5 --index-url https://pypi.org/simple
-python -m pip install git+https://github.com/openai/CLIP.git --no-deps --index-url https://pypi.org/simple
+python -m pip install git+https://github.com/openai/CLIP.git@a1d071733d7111c9c014f024669f959182114e33 --no-deps --index-url https://pypi.org/simple
 
 progress "Patching launch_utils..."
 sed -i 's#https://github.com/Stability-AI/stablediffusion.git#https://github.com/comp6062/Stability-AI-stablediffusion.git#g' modules/launch_utils.py
 sed -i 's/run_pip(f"install {clip_package}", "clip")/run_pip(f"install --no-build-isolation --no-use-pep517 {clip_package}", "clip")/g' modules/launch_utils.py
 
 download_if_missing() {
-  [ -f "$2" ] || { mkdir -p "$(dirname "$2")"; wget -O "$2" "$1"; }
+  local url="$1" destination="$2" temporary="${2}.part"
+  if [ ! -f "$destination" ]; then
+    mkdir -p "$(dirname "$destination")"
+    rm -f "$temporary"
+    wget --https-only --secure-protocol=TLSv1_2 -O "$temporary" "$url"
+    [ -s "$temporary" ] || { rm -f "$temporary"; fail "Downloaded file is empty: $url"; return 1; }
+    mv "$temporary" "$destination"
+  fi
 }
 
 if [ "$DOWNLOAD_MODELS" = "1" ]; then
@@ -248,14 +298,22 @@ if [ "$DOWNLOAD_MODELS" = "1" ]; then
 
   download_if_missing \
   "https://huggingface.co/cyberdelia/CyberRealistic/resolve/main/CyberRealistic_V7.0_FP16.safetensors" \
-  "$WEBUI_DIR/models/Stable-diffusion/CyberRealistic_V7.0_FP16.safetensors"
+  "$STAGE_WEBUI_DIR/models/Stable-diffusion/CyberRealistic_V7.0_FP16.safetensors"
 
   download_if_missing \
   "https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/resolve/main/Realistic_Vision_V5.1-inpainting.safetensors" \
-  "$WEBUI_DIR/models/Stable-diffusion/Realistic_Vision_V5.1-inpainting.safetensors"
+  "$STAGE_WEBUI_DIR/models/Stable-diffusion/Realistic_Vision_V5.1-inpainting.safetensors"
 fi
 
 deactivate || true
+
+progress "Activating completed installation..."
+rm -rf "$BACKUP_WEBUI_DIR" "$BACKUP_VENV_DIR"
+[ -d "$WEBUI_DIR" ] && mv "$WEBUI_DIR" "$BACKUP_WEBUI_DIR"
+[ -d "$VENV_DIR" ] && mv "$VENV_DIR" "$BACKUP_VENV_DIR"
+SWAP_STARTED=1
+mv "$STAGE_WEBUI_DIR" "$WEBUI_DIR"
+mv "$STAGE_VENV_DIR" "$VENV_DIR"
 
 cat > "$RUN_SD_PATH" <<RUNEOF
 #!/bin/bash
@@ -288,33 +346,40 @@ read -rp "Choice: " c
 
 case "\$c" in
   1)
-    source "\$VENV_DIR/bin/activate"
+    [ -x "\$VENV_DIR/bin/python" ] && [ -f "\$WEBUI_DIR/launch.py" ] || { echo "Installation is incomplete." >&2; exit 1; }
     cd "\$WEBUI_DIR"
     IP="\$(get_lan_ip)"
     echo "http://\$IP:7860"
-    python launch.py --skip-torch-cuda-test --no-half --listen
+    echo "\$\$" > /tmp/sd_webui.pid
+    exec "\$VENV_DIR/bin/python" launch.py --skip-torch-cuda-test --no-half --listen
     ;;
   2)
-    source "\$VENV_DIR/bin/activate"
+    [ -x "\$VENV_DIR/bin/python" ] && [ -f "\$WEBUI_DIR/launch.py" ] || { echo "Installation is incomplete. Run LAN mode first." >&2; exit 1; }
     cd "\$WEBUI_DIR"
-    python launch.py --skip-torch-cuda-test --no-half --listen --skip-install
+    echo "\$\$" > /tmp/sd_webui.pid
+    exec "\$VENV_DIR/bin/python" launch.py --skip-torch-cuda-test --no-half --listen --skip-install
     ;;
   3)
-    pkill -TERM -f "\$WEBUI_DIR/launch.py" 2>/dev/null || true
-    pkill -TERM -f "python.*launch.py.*--listen" 2>/dev/null || true
-    rm -f /tmp/sd_gui.pid
+    if [ -f /tmp/sd_webui.pid ]; then
+      PID="\$(cat /tmp/sd_webui.pid 2>/dev/null || true)"
+      if [ -n "\$PID" ] && [ -r "/proc/\$PID/cmdline" ] && [ "\$(readlink -f "/proc/\$PID/cwd" 2>/dev/null || true)" = "\$(readlink -f "\$WEBUI_DIR")" ] && tr '\0' ' ' < "/proc/\$PID/cmdline" | grep -Fq "launch.py"; then
+        kill -TERM "\$PID" 2>/dev/null || true
+        for _ in {1..20}; do kill -0 "\$PID" 2>/dev/null || break; sleep 0.25; done
+        kill -KILL "\$PID" 2>/dev/null || true
+      fi
+    fi
+    rm -f /tmp/sd_webui.pid /tmp/sd_gui.pid
     echo "Stable Diffusion stopped."
     ;;
   4)
-    rm -rf "\$WEBUI_DIR"
-    rm -rf "\$VENV_DIR"
-    rm -f "\$RUN_SD_PATH"
-    rm -f "\$INSTALL_ROOT/.sd_gui_runner.sh"
-    rm -f "\$INSTALL_ROOT/.sd_gui_app.py"
-    rm -f "\$INSTALL_ROOT/.sd_gui_banner.png"
-    rm -f "$USER_HOME/.local/share/applications/sd-gui.desktop"
-    rm -f "$USER_HOME/Desktop/StableDiffusionGUI.desktop"
-    rm -f /tmp/sd_gui.pid
+    read -rp "Permanently uninstall Stable Diffusion and all installed files? [y/N]: " confirm
+    case "\${confirm,,}" in y|yes) ;; *) echo "Uninstall cancelled."; exit 0 ;; esac
+    "\$RUN_SD_PATH" <<< "3" >/dev/null 2>&1 || true
+    rm -rf -- "\$WEBUI_DIR" "\$VENV_DIR"
+    rm -f -- "\$INSTALL_ROOT/.sd_gui_runner.sh" "\$INSTALL_ROOT/.sd_gui_app.py" "\$INSTALL_ROOT/.sd_gui_banner.png"
+    rm -f -- "$USER_HOME/.local/share/applications/sd-gui.desktop" "$USER_HOME/Desktop/StableDiffusionGUI.desktop"
+    rm -f /tmp/sd_webui.pid /tmp/sd_gui.pid
+    rm -f -- "\$RUN_SD_PATH"
     echo "Cleanup complete."
     ;;
   q|Q)
@@ -332,7 +397,7 @@ chown "$TARGET_USER:$TARGET_USER" "$RUN_SD_PATH"
 if [ "$INCLUDE_GUI" = "1" ]; then
 # GUI LAUNCHER
 # ============================================================
-APP_NAME="Stable Diffusion GUI"
+APP_NAME="Stable Diffusion"
 LAUNCHER="$USER_HOME/.local/share/applications/sd-gui.desktop"
 DESKTOP_SHORTCUT="$USER_HOME/Desktop/StableDiffusionGUI.desktop"
 SCRIPT_DIR=""
@@ -7740,6 +7805,7 @@ import subprocess
 import threading
 import time
 import tkinter as tk
+from tkinter import messagebox
 import urllib.request
 import webbrowser
 
@@ -7768,7 +7834,7 @@ RED = "#ff3048"
 TEAL = "#00a7b7"
 
 root = tk.Tk()
-root.title("Stable Diffusion GUI Launcher")
+root.title("Stable Diffusion")
 root.configure(bg=BG)
 root.resizable(False, False)
 
@@ -7802,37 +7868,35 @@ def shell_quote(text):
 
 
 def run_mode(mode):
-    cmd = f"echo Running mode {mode}; printf '%s\\n' {mode} | {shell_quote(SCRIPT)}; echo; echo Press ENTER to close...; read"
+    if str(mode) == "4":
+        cmd = f"printf '4\ny\n' | {shell_quote(SCRIPT)}"
+    elif str(mode) == "3":
+        cmd = f"printf '3\n' | {shell_quote(SCRIPT)}"
+    else:
+        cmd = f"printf '%s\n' {mode} | {shell_quote(SCRIPT)}; echo; echo Press ENTER to close...; read"
     proc = subprocess.Popen(["setsid", "lxterminal", "--command", f"bash -c {shell_quote(cmd)}"])
     with open(PID_FILE, "w", encoding="utf-8") as f:
         f.write(str(proc.pid))
-    notify(f"Stable Diffusion is running (mode {mode})")
+    if str(mode) in ("1", "2"):
+        notify(f"Stable Diffusion launch requested (mode {mode})")
     if str(mode) == "1":
         threading.Thread(target=wait_for_webui_and_open, daemon=True).start()
 
 
 def stop_run():
-    if os.path.exists(PID_FILE):
-        try:
-            os.remove(PID_FILE)
-        except OSError:
-            pass
-
-    for pattern in ("python.*launch.py.*--listen", "python.*launch.py.*--skip-torch-cuda-test"):
-        subprocess.run(["pkill", "-TERM", "-f", pattern], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    root.after(2000, force_stop)
+    subprocess.run([SCRIPT], input="3\n", text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     notify("Stable Diffusion stopped")
 
 
-def force_stop():
-    for pattern in (os.path.join(WEBUI_DIR, "launch.py"), "python.*launch.py.*--listen"):
-        subprocess.run(["pkill", "-KILL", "-f", pattern], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
 def uninstall():
-    run_mode(4)
-    root.destroy()
-
+    confirmed = messagebox.askyesno(
+        "Uninstall Stable Diffusion",
+        "Permanently remove Stable Diffusion WebUI, its virtual environment, launcher, and shortcuts?",
+        icon="warning",
+    )
+    if confirmed:
+        run_mode(4)
+        root.destroy()
 
 def get_lan_ip():
     try:
@@ -7896,7 +7960,7 @@ if Image and ImageTk and os.path.exists(BANNER_IMAGE):
 
 if banner_img_ref is None:
     tk.Label(banner_inner, text="Stable Diffusion", fg=BLUE, bg="#050916", font=font(38, "bold")).pack(pady=(sz(26), 0))
-    tk.Label(banner_inner, text="GUI Launcher", fg=TEXT, bg="#050916", font=font(22, "bold")).pack()
+    tk.Label(banner_inner, text="Launcher", fg=TEXT, bg="#050916", font=font(22, "bold")).pack()
     tk.Label(banner_inner, text="Run Automatic1111's WebUI on your Raspberry Pi 5", fg=MUTED, bg="#050916", font=font(15)).pack(pady=(sz(8), 0))
 
 panel_outer, panel = bordered(main, PANEL, "#0b1d3a", 1)
@@ -7965,14 +8029,15 @@ root.after(750, center_window)
 root.mainloop()
 EOF
 
-python3 - <<PY_PATCH
+python3 - "$INSTALL_ROOT/.sd_gui_app.py" "$RUN_SD_PATH" "$WEBUI_DIR" "$INSTALL_ROOT/.sd_gui_banner.png" <<'PY_PATCH'
 from pathlib import Path
-app = Path("$INSTALL_ROOT/.sd_gui_app.py")
-s = app.read_text()
-s = s.replace("__RUN_SD_PATH__", "$INSTALL_ROOT/run_sd.sh")
-s = s.replace("__WEBUI_DIR__", "$WEBUI_DIR")
-s = s.replace("__BANNER_PATH__", "$INSTALL_ROOT/.sd_gui_banner.png")
-app.write_text(s)
+import sys
+app = Path(sys.argv[1])
+source = app.read_text()
+source = source.replace('"__RUN_SD_PATH__"', repr(sys.argv[2]))
+source = source.replace('"__WEBUI_DIR__"', repr(sys.argv[3]))
+source = source.replace('"__BANNER_PATH__"', repr(sys.argv[4]))
+app.write_text(source)
 PY_PATCH
 chmod +x "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
 chown "$TARGET_USER:$TARGET_USER" "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
@@ -9672,11 +9737,21 @@ install_sd_launcher_icon
 mkdir -p "$USER_HOME/.local/share/applications"
 mkdir -p "$USER_HOME/Desktop"
 
+desktop_exec_quote() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//\`/\\\`}"
+  value="${value//\$/\\$}"
+  printf '"%s"' "$value"
+}
+GUI_EXEC="$(desktop_exec_quote "$INSTALL_ROOT/.sd_gui_runner.sh")"
+
 cat > "$LAUNCHER" << EOF
 [Desktop Entry]
 Name=$APP_NAME
-Comment=Launch Stable Diffusion GUI
-Exec=$INSTALL_ROOT/.sd_gui_runner.sh
+Comment=Launch Stable Diffusion
+Exec=$GUI_EXEC
 Icon=$ICON_NAME
 Terminal=false
 Type=Application
@@ -9726,11 +9801,12 @@ if [ "$INCLUDE_GUI" != "1" ] && { [ "$CREATE_MENU" = "1" ] || [ "$CREATE_DESKTOP
   fi
   mkdir -p "$USER_HOME/.local/share/applications" "$USER_HOME/Desktop"
   install_sd_launcher_icon
+  CLI_EXEC="$(desktop_exec_quote "$RUN_SD_PATH")"
   cat > "$LAUNCHER" <<EOF
 [Desktop Entry]
 Name=$APP_NAME
 Comment=Launch Stable Diffusion CLI
-Exec=$RUN_SD_PATH
+Exec=$CLI_EXEC
 Icon=$ICON_NAME
 Terminal=true
 Type=Application
@@ -9746,9 +9822,27 @@ if [ "$INCLUDE_GUI" = "1" ]; then
   [ "$CREATE_MENU" != "1" ] && rm -f "$USER_HOME/.local/share/applications/sd-gui.desktop"
 fi
 
-CLEANUP_ON_FAIL=0
+rm -rf "$BACKUP_WEBUI_DIR" "$BACKUP_VENV_DIR"
+SWAP_STARTED=0
+trap - ERR INT TERM
 ok "Setup complete."
 ok "Run: $RUN_SD_PATH"
 sync
-ok "Restarting to finalize desktop launcher configuration."
-sudo reboot
+while true; do
+  printf "\nReboot now to finalize the installation? [Y/n]: "
+  read -r REBOOT_CHOICE
+  case "$REBOOT_CHOICE" in
+    ""|[Yy]|[Yy][Ee][Ss])
+      ok "Installation successful. Rebooting now."
+      sudo reboot
+      break
+      ;;
+    [Nn]|[Nn][Oo])
+      ok "Installation successful. Reboot before using Stable Diffusion."
+      break
+      ;;
+    *)
+      warn "Please answer yes or no."
+      ;;
+  esac
+done
