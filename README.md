@@ -5,24 +5,22 @@
 ![ARM64](https://img.shields.io/badge/ARM64-aarch64-success)
 ![License](https://img.shields.io/badge/license-MIT-informational)
 
-This repository provides a **fully automated setup** for running  
-**AUTOMATIC1111 Stable Diffusion WebUI** (AI image generator), on Raspberry Pi 5 or newer ARM-based Raspberry Pi systems.
+A streamlined, fully automated installer for **AUTOMATIC1111 Stable Diffusion WebUI** on **Raspberry Pi 5 and newer ARM-based Raspberry Pi systems**.
 
-It supports **CPU-only inference**, is optimized for ARM environments, and includes
-a guided installer, integrated GUI launcher, bundled banner artwork, unified launcher, and clean uninstall process.
+This project is designed for CPU-only inference and provides an interactive installation experience with an optional graphical launcher, desktop integration, menu integration, optional model downloads, and a clean uninstall process.
 
 > **Hardware Requirement**
 >
-> This installer is designed and supported for **Raspberry Pi 5 or newer**. Earlier Raspberry Pi models are not supported by this project.
+> This installer is designed and supported for **Raspberry Pi 5 or newer**. Earlier Raspberry Pi models are not supported.
 
 ---
 
 ## Index
 
 1. [Remote install](#1-remote-install)
-2. [Interactive installer menu](#2-interactive-installer-menu)
-3. [Run after install](#3-run-after-install)
-4. [First run note](#4-first-run-note)
+2. [Interactive installer](#2-interactive-installer)
+3. [Running Stable Diffusion](#3-running-stable-diffusion)
+4. [First launch](#4-first-launch)
 5. [GUI launcher](#5-gui-launcher)
 6. [Model downloads](#6-model-downloads)
 7. [Uninstall](#7-uninstall)
@@ -31,23 +29,25 @@ a guided installer, integrated GUI launcher, bundled banner artwork, unified lau
 
 ## 1. Remote install
 
-Install directly from GitHub with `curl`:
+Run the installer directly from GitHub using either command below.
+
+Using **curl**:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/setup_sd.sh | bash
 ```
 
-or with `wget`:
+Using **wget**:
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/setup_sd.sh | bash
 ```
 
-This installer is self-contained for remote bash installs. The GUI banner is embedded inside `setup_sd.sh`, so the remote install does not need a separate banner download.
+The installer is completely self-contained. The GUI banner is embedded inside `setup_sd.sh`, so no additional banner download is required during remote installation.
 
-## 2. Interactive installer menu
+## 2. Interactive installer
 
-The installer opens a menu before installing:
+Before installation begins, an interactive configuration menu allows you to customize the installation.
 
 ```text
 Stable Diffusion Raspberry Pi Installer
@@ -64,15 +64,13 @@ Use the menu below to choose install options.
   q) Quit
 ```
 
-Options can be toggled before install starts.
-
-Default install location is your home folder:
+By default, the installer uses your home directory:
 
 ```bash
 ~/
 ```
 
-With the default location, the installer creates:
+This creates:
 
 ```bash
 ~/stable-diffusion-webui
@@ -80,36 +78,38 @@ With the default location, the installer creates:
 ~/run_sd.sh
 ```
 
-If you choose a different install location, those files are created inside that folder instead.
+If a custom installation directory is selected, these files are created in that location instead.
 
-## 3. Run after install
+## 3. Running Stable Diffusion
 
-Use:
+Launch the application with:
 
 ```bash
 ~/run_sd.sh
 ```
 
-If you installed to a custom folder, run:
+If installed elsewhere:
 
 ```bash
 /path/to/install/run_sd.sh
 ```
 
-The run menu includes:
+The launcher provides:
 
-1. LAN mode - first run installs needed WebUI files and allows LAN access
-2. Offline mode - starts without dependency checks or installs
-3. Stop running - stops the running WebUI process
-4. Uninstall - removes WebUI, venv, launcher files, and shortcuts
+1. LAN Mode — Starts the WebUI with network access. On first launch it downloads and installs any required runtime components.
+2. Offline Mode — Starts the WebUI without dependency checks.
+3. Stop Running — Stops the currently running WebUI instance.
+4. Uninstall — Removes the installed application, virtual environment, launcher, and shortcuts.
 
-## 4. First run note
+## 4. First launch
 
-The first time you run Stable Diffusion after install, run LAN mode once while online. This allows Automatic1111 to install needed runtime files. After the first successful LAN run, offline mode can be used without checking or installing dependencies.
+The first launch should always be performed using **LAN Mode** while connected to the internet. This allows AUTOMATIC1111 to complete its initial setup and install any required runtime components.
+
+After the initial setup has completed successfully, **Offline Mode** can be used without performing additional dependency checks.
 
 ## 5. GUI launcher
 
-If GUI launcher is enabled, the installer creates:
+When enabled, the installer creates:
 
 ```bash
 .sd_gui_app.py
@@ -119,50 +119,42 @@ If GUI launcher is enabled, the installer creates:
 ~/.local/share/icons/hicolor/256x256/apps/sd_icon.png
 ```
 
-These are placed in the selected install location.
-
-If desktop shortcut is enabled, the installer creates:
+Desktop shortcut (optional):
 
 ```bash
 ~/Desktop/StableDiffusionGUI.desktop
 ```
 
-The desktop shortcut uses the installed icon name:
-
-```bash
-sd_icon
-```
-
-If menu launcher is enabled, the installer creates:
+Menu launcher (optional):
 
 ```bash
 ~/.local/share/applications/sd-gui.desktop
 ```
 
-The menu launcher uses the installed icon name:
+Both launchers use the installed icon:
 
-```bash
+```text
 sd_icon
 ```
 
-The GUI includes:
+The GUI provides quick access to:
 
 - LAN Mode
 - Offline Mode
 - Stop Running
 - Uninstall
-- Open Web-UI
+- Open WebUI
 
 ## 6. Model downloads
 
-Model downloads are optional in the installer.
+Downloading models during installation is optional.
 
-If enabled, the installer downloads:
+When enabled, the installer downloads:
 
 - `CyberRealistic_V7.0_FP16.safetensors`
 - `Realistic_Vision_V5.1-inpainting.safetensors`
 
-If disabled, no models are downloaded during setup. You can add models later in:
+If model downloads are disabled, models can be added later to:
 
 ```bash
 stable-diffusion-webui/models/Stable-diffusion/
@@ -176,13 +168,13 @@ Run:
 ~/run_sd.sh
 ```
 
-Then choose:
+Select:
 
-```bash
+```text
 4) Uninstall
 ```
 
-If installed to a custom folder, run that folder's `run_sd.sh` and choose uninstall.
+If installed in a custom location, run that installation's `run_sd.sh` and choose the uninstall option.
 
 The uninstaller removes:
 
@@ -190,26 +182,23 @@ The uninstaller removes:
 - `stable-diffusion-env`
 - `run_sd.sh`
 - GUI helper files
-- desktop shortcut
-- menu launcher
+- Desktop shortcut
+- Menu launcher
 - `/tmp/sd_gui.pid`
 
 ## 8. Included files
 
-- `setup_sd.sh` - interactive self-contained remote-bash installer
-- `sd_gui_banner.png` - GUI banner artwork for local reference/local extracted installs
-- `sd_icon.png` - launcher icon used by the desktop shortcut and menu launcher
-- `README.md` - this documentation
+- `setup_sd.sh` — Self-contained interactive installer
+- `sd_gui_banner.png` — GUI banner artwork for local installs
+- `sd_icon.png` — Desktop and menu launcher icon
+- `README.md` — Project documentation
 
-Remote install only requires `setup_sd.sh`.
+Remote installations require only `setup_sd.sh`.
 
 ## 9. Notes
 
-- Designed for **Raspberry Pi 5 or newer** running Raspberry Pi OS (64-bit).
-- Earlier Raspberry Pi models are not supported.
-
-
-- This installer is intended for Raspberry Pi OS 64-bit.
+- Designed for **Raspberry Pi 5 or newer**.
+- Intended for **Raspberry Pi OS (64-bit)**.
 - CPU-only PyTorch is installed.
-- The WebUI is pinned to the known working Automatic1111 commit used by this setup.
-- Offline mode should be used only after LAN mode has completed successfully once.
+- The installer uses the known working AUTOMATIC1111 commit validated for this project.
+- Run LAN Mode once before using Offline Mode.
