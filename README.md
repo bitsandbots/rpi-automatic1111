@@ -225,3 +225,11 @@ Run the included validation script from the project directory before publishing 
 ```
 
 It checks the installer executable permission, Bash syntax, embedded GUI Python syntax, final-path virtual-environment logic, model hash verification, and installation-scoped runtime PID configuration.
+
+## Remote Installation
+
+Replace the example below with your GitHub raw URL:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/<YOUR_USERNAME>/<YOUR_REPOSITORY>/<YOUR_BRANCH>/setup_sd.sh)
+```
