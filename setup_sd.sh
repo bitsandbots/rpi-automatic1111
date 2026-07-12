@@ -167,7 +167,6 @@ VENV_DIR="$INSTALL_ROOT/stable-diffusion-env"
 RUN_SD_PATH="$INSTALL_ROOT/run_sd.sh"
 STAGE_TAG=".sd-install-$$"
 STAGE_WEBUI_DIR="$INSTALL_ROOT/$STAGE_TAG-webui"
-STAGE_VENV_DIR="$INSTALL_ROOT/$STAGE_TAG-env"
 BACKUP_WEBUI_DIR="$INSTALL_ROOT/.sd-backup-webui-$$"
 BACKUP_VENV_DIR="$INSTALL_ROOT/.sd-backup-env-$$"
 SWAP_STARTED=0
@@ -180,7 +179,7 @@ validate_platform() {
   model="$(tr -d '\0' </proc/device-tree/model 2>/dev/null || true)"
   case "$model" in
     *"Raspberry Pi 5"*|*"Raspberry Pi 500"*|*"Raspberry Pi Compute Module 5"*) ;;
-    *) fail "Unsupported hardware: ${model:-unknown}. Raspberry Pi 5 or newer is required."; exit 1 ;;
+    *) fail "Unsupported hardware: ${model:-unknown}. Raspberry Pi 5-class hardware (Raspberry Pi 5, Raspberry Pi 500, or Compute Module 5) is required."; exit 1 ;;
   esac
 
   os_id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
@@ -200,7 +199,7 @@ validate_platform() {
 
 rollback_install() {
   local status=$?
-  rm -rf "$STAGE_WEBUI_DIR" "$STAGE_VENV_DIR" 2>/dev/null || true
+  rm -rf "$STAGE_WEBUI_DIR" 2>/dev/null || true
   if [ "$SWAP_STARTED" = "1" ]; then
     rm -rf "$WEBUI_DIR" "$VENV_DIR" 2>/dev/null || true
     [ -d "$BACKUP_WEBUI_DIR" ] && mv "$BACKUP_WEBUI_DIR" "$WEBUI_DIR"
@@ -250,45 +249,31 @@ fi
 
 sudo apt install -y "${APT_PACKAGES[@]}"
 
-progress "Creating staged venv..."
-rm -rf "$STAGE_VENV_DIR" "$STAGE_WEBUI_DIR"
-sudo -u "$TARGET_USER" python3 -m venv "$STAGE_VENV_DIR"
-
-source "$STAGE_VENV_DIR/bin/activate"
-
-export PIP_CONFIG_FILE=/dev/null
-export PIP_DISABLE_PIP_VERSION_CHECK=1
-export PIP_NO_INPUT=1
-
-progress "Upgrading pip..."
-python -m pip install -U "pip<24.1" "setuptools<70" wheel packaging
+progress "Preparing staged WebUI..."
+rm -rf "$STAGE_WEBUI_DIR"
 
 progress "Cloning WebUI into staging..."
 sudo -u "$TARGET_USER" git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git "$STAGE_WEBUI_DIR"
 
 cd "$STAGE_WEBUI_DIR"
 sudo -u "$TARGET_USER" git checkout 82a973c04367123ae98bd9abdf80d9eda9b910e2
-
-progress "Installing PyTorch..."
-python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-
-progress "Installing requirements..."
-python -m pip install -r requirements.txt --index-url https://pypi.org/simple
-
-python -m pip install pytorch-lightning==1.9.5 --index-url https://pypi.org/simple
-python -m pip install git+https://github.com/openai/CLIP.git@a1d071733d7111c9c014f024669f959182114e33 --no-deps --index-url https://pypi.org/simple
+[ "$(sudo -u "$TARGET_USER" git rev-parse HEAD)" = "82a973c04367123ae98bd9abdf80d9eda9b910e2" ] || { fail "WebUI commit verification failed."; exit 1; }
 
 progress "Patching launch_utils..."
 sed -i 's#https://github.com/Stability-AI/stablediffusion.git#https://github.com/comp6062/Stability-AI-stablediffusion.git#g' modules/launch_utils.py
 sed -i 's/run_pip(f"install {clip_package}", "clip")/run_pip(f"install --no-build-isolation --no-use-pep517 {clip_package}", "clip")/g' modules/launch_utils.py
 
 download_if_missing() {
-  local url="$1" destination="$2" temporary="${2}.part"
+  local url="$1" destination="$2" temporary="${2}.part" expected_hash actual_hash
   if [ ! -f "$destination" ]; then
     mkdir -p "$(dirname "$destination")"
     rm -f "$temporary"
+    expected_hash="$(curl -fsSIL "$url" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-linked-etag" {gsub(/[" ]/, "", $2); print $2}' | tail -n1 || true)"
+    [[ "$expected_hash" =~ ^[0-9a-fA-F]{64}$ ]] || { fail "Could not obtain a trusted SHA-256 hash for: $url"; return 1; }
     wget --https-only --secure-protocol=TLSv1_2 -O "$temporary" "$url"
     [ -s "$temporary" ] || { rm -f "$temporary"; fail "Downloaded file is empty: $url"; return 1; }
+    actual_hash="$(sha256sum "$temporary" | awk '{print $1}')"
+    [ "${actual_hash,,}" = "${expected_hash,,}" ] || { rm -f "$temporary"; fail "SHA-256 verification failed: $url"; return 1; }
     mv "$temporary" "$destination"
   fi
 }
@@ -305,15 +290,35 @@ if [ "$DOWNLOAD_MODELS" = "1" ]; then
   "$STAGE_WEBUI_DIR/models/Stable-diffusion/Realistic_Vision_V5.1-inpainting.safetensors"
 fi
 
-deactivate || true
-
 progress "Activating completed installation..."
 rm -rf "$BACKUP_WEBUI_DIR" "$BACKUP_VENV_DIR"
 [ -d "$WEBUI_DIR" ] && mv "$WEBUI_DIR" "$BACKUP_WEBUI_DIR"
 [ -d "$VENV_DIR" ] && mv "$VENV_DIR" "$BACKUP_VENV_DIR"
 SWAP_STARTED=1
 mv "$STAGE_WEBUI_DIR" "$WEBUI_DIR"
-mv "$STAGE_VENV_DIR" "$VENV_DIR"
+
+progress "Creating virtual environment at its final path..."
+sudo -u "$TARGET_USER" python3 -m venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
+export PIP_CONFIG_FILE=/dev/null
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PIP_NO_INPUT=1
+
+progress "Upgrading pip..."
+python -m pip install -U "pip<24.1" "setuptools<70" wheel packaging
+
+cd "$WEBUI_DIR"
+progress "Installing PyTorch..."
+python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+progress "Installing requirements..."
+python -m pip install -r requirements.txt --index-url https://pypi.org/simple
+python -m pip install pytorch-lightning==1.9.5 --index-url https://pypi.org/simple
+python -m pip install git+https://github.com/openai/CLIP.git@a1d071733d7111c9c014f024669f959182114e33 --no-deps --index-url https://pypi.org/simple
+python - <<'PYVERIFY'
+import clip
+print("OpenAI CLIP import verified.")
+PYVERIFY
+deactivate || true
 
 cat > "$RUN_SD_PATH" <<RUNEOF
 #!/bin/bash
@@ -323,6 +328,11 @@ WEBUI_DIR="$WEBUI_DIR"
 VENV_DIR="$VENV_DIR"
 INSTALL_ROOT="$INSTALL_ROOT"
 RUN_SD_PATH="$RUN_SD_PATH"
+RUNTIME_DIR="$INSTALL_ROOT/.sd-runtime"
+WEBUI_PID_FILE="\$RUNTIME_DIR/webui.pid"
+GUI_PID_FILE="\$RUNTIME_DIR/gui.pid"
+mkdir -p "\$RUNTIME_DIR"
+chmod 700 "\$RUNTIME_DIR"
 
 get_lan_ip() {
   local ip=""
@@ -350,25 +360,25 @@ case "\$c" in
     cd "\$WEBUI_DIR"
     IP="\$(get_lan_ip)"
     echo "http://\$IP:7860"
-    echo "\$\$" > /tmp/sd_webui.pid
+    echo "\$\$" > "\$WEBUI_PID_FILE"
     exec "\$VENV_DIR/bin/python" launch.py --skip-torch-cuda-test --no-half --listen
     ;;
   2)
     [ -x "\$VENV_DIR/bin/python" ] && [ -f "\$WEBUI_DIR/launch.py" ] || { echo "Installation is incomplete. Run LAN mode first." >&2; exit 1; }
     cd "\$WEBUI_DIR"
-    echo "\$\$" > /tmp/sd_webui.pid
+    echo "\$\$" > "\$WEBUI_PID_FILE"
     exec "\$VENV_DIR/bin/python" launch.py --skip-torch-cuda-test --no-half --listen --skip-install
     ;;
   3)
-    if [ -f /tmp/sd_webui.pid ]; then
-      PID="\$(cat /tmp/sd_webui.pid 2>/dev/null || true)"
+    if [ -f "\$WEBUI_PID_FILE" ]; then
+      PID="\$(cat "\$WEBUI_PID_FILE" 2>/dev/null || true)"
       if [ -n "\$PID" ] && [ -r "/proc/\$PID/cmdline" ] && [ "\$(readlink -f "/proc/\$PID/cwd" 2>/dev/null || true)" = "\$(readlink -f "\$WEBUI_DIR")" ] && tr '\0' ' ' < "/proc/\$PID/cmdline" | grep -Fq "launch.py"; then
         kill -TERM "\$PID" 2>/dev/null || true
         for _ in {1..20}; do kill -0 "\$PID" 2>/dev/null || break; sleep 0.25; done
         kill -KILL "\$PID" 2>/dev/null || true
       fi
     fi
-    rm -f /tmp/sd_webui.pid /tmp/sd_gui.pid
+    rm -f "\$WEBUI_PID_FILE" "\$GUI_PID_FILE"
     echo "Stable Diffusion stopped."
     ;;
   4)
@@ -378,7 +388,8 @@ case "\$c" in
     rm -rf -- "\$WEBUI_DIR" "\$VENV_DIR"
     rm -f -- "\$INSTALL_ROOT/.sd_gui_runner.sh" "\$INSTALL_ROOT/.sd_gui_app.py" "\$INSTALL_ROOT/.sd_gui_banner.png"
     rm -f -- "$USER_HOME/.local/share/applications/sd-gui.desktop" "$USER_HOME/Desktop/StableDiffusionGUI.desktop"
-    rm -f /tmp/sd_webui.pid /tmp/sd_gui.pid
+    rm -f "\$WEBUI_PID_FILE" "\$GUI_PID_FILE"
+    rm -rf -- "\$RUNTIME_DIR"
     rm -f -- "\$RUN_SD_PATH"
     echo "Cleanup complete."
     ;;
@@ -7818,7 +7829,7 @@ except Exception:
 HOME = os.path.expanduser("~")
 SCRIPT = "__RUN_SD_PATH__"
 WEBUI_DIR = "__WEBUI_DIR__"
-PID_FILE = "/tmp/sd_gui.pid"
+PID_FILE = "__GUI_PID_FILE__"
 BANNER_IMAGE = "__BANNER_PATH__"
 
 BG = "#050814"
@@ -7875,6 +7886,7 @@ def run_mode(mode):
     else:
         cmd = f"printf '%s\n' {mode} | {shell_quote(SCRIPT)}; echo; echo Press ENTER to close...; read"
     proc = subprocess.Popen(["setsid", "lxterminal", "--command", f"bash -c {shell_quote(cmd)}"])
+    os.makedirs(os.path.dirname(PID_FILE), mode=0o700, exist_ok=True)
     with open(PID_FILE, "w", encoding="utf-8") as f:
         f.write(str(proc.pid))
     if str(mode) in ("1", "2"):
@@ -8029,7 +8041,7 @@ root.after(750, center_window)
 root.mainloop()
 EOF
 
-python3 - "$INSTALL_ROOT/.sd_gui_app.py" "$RUN_SD_PATH" "$WEBUI_DIR" "$INSTALL_ROOT/.sd_gui_banner.png" <<'PY_PATCH'
+python3 - "$INSTALL_ROOT/.sd_gui_app.py" "$RUN_SD_PATH" "$WEBUI_DIR" "$INSTALL_ROOT/.sd_gui_banner.png" "$INSTALL_ROOT/.sd-runtime/gui.pid" <<'PY_PATCH'
 from pathlib import Path
 import sys
 app = Path(sys.argv[1])
@@ -8037,6 +8049,7 @@ source = app.read_text()
 source = source.replace('"__RUN_SD_PATH__"', repr(sys.argv[2]))
 source = source.replace('"__WEBUI_DIR__"', repr(sys.argv[3]))
 source = source.replace('"__BANNER_PATH__"', repr(sys.argv[4]))
+source = source.replace('"__GUI_PID_FILE__"', repr(sys.argv[5]))
 app.write_text(source)
 PY_PATCH
 chmod +x "$INSTALL_ROOT/.sd_gui_runner.sh" "$INSTALL_ROOT/.sd_gui_app.py"
@@ -9755,7 +9768,7 @@ Exec=$GUI_EXEC
 Icon=$ICON_NAME
 Terminal=false
 Type=Application
-Categories=Utility;
+Categories=Graphics;
 EOF
 
 cp "$LAUNCHER" "$DESKTOP_SHORTCUT"
@@ -9810,7 +9823,7 @@ Exec=$CLI_EXEC
 Icon=$ICON_NAME
 Terminal=true
 Type=Application
-Categories=Utility;
+Categories=Graphics;
 EOF
   [ "$CREATE_DESKTOP" = "1" ] && cp "$LAUNCHER" "$DESKTOP_SHORTCUT" && chmod +x "$DESKTOP_SHORTCUT"
   [ "$CREATE_MENU" != "1" ] && rm -f "$LAUNCHER"
@@ -9826,23 +9839,11 @@ rm -rf "$BACKUP_WEBUI_DIR" "$BACKUP_VENV_DIR"
 SWAP_STARTED=0
 trap - ERR INT TERM
 ok "Setup complete."
+if [ "$CREATE_MENU" = "1" ]; then
+  ok "Menu launcher: Applications > Graphics > $APP_NAME"
+fi
+if [ "$CREATE_DESKTOP" = "1" ]; then
+  ok "Desktop launcher: $DESKTOP_SHORTCUT"
+fi
 ok "Run: $RUN_SD_PATH"
 sync
-while true; do
-  printf "\nReboot now to finalize the installation? [Y/n]: "
-  read -r REBOOT_CHOICE
-  case "$REBOOT_CHOICE" in
-    ""|[Yy]|[Yy][Ee][Ss])
-      ok "Installation successful. Rebooting now."
-      sudo reboot
-      break
-      ;;
-    [Nn]|[Nn][Oo])
-      ok "Installation successful. Reboot before using Stable Diffusion."
-      break
-      ;;
-    *)
-      warn "Please answer yes or no."
-      ;;
-  esac
-done

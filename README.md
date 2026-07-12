@@ -1,17 +1,17 @@
-# Stable Diffusion WebUI – Raspberry Pi 5+ (ARM)
+# Stable Diffusion WebUI – Raspberry Pi 5-Class (ARM)
 
-![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%205%2B%20%2F%20ARM-blue)
+![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%205--Class%20%2F%20ARM-blue)
 ![CPU](https://img.shields.io/badge/acceleration-CPU--only-orange)
 ![ARM64](https://img.shields.io/badge/ARM64-aarch64-success)
 ![License](https://img.shields.io/badge/license-MIT-informational)
 
-A streamlined, fully automated installer for **AUTOMATIC1111 Stable Diffusion WebUI** on **Raspberry Pi 5 and newer ARM-based Raspberry Pi systems**.
+A streamlined, fully automated installer for **AUTOMATIC1111 Stable Diffusion WebUI** on **Raspberry Pi 5-class ARM-based systems** (Raspberry Pi 5, Raspberry Pi 500, and Compute Module 5).
 
 This project is designed for CPU-only inference and provides an interactive installation experience with an optional graphical launcher, desktop integration, menu integration, optional model downloads, and a clean uninstall process.
 
 > **Hardware Requirement**
 >
-> This installer is designed and supported for **Raspberry Pi 5 or newer**. Earlier Raspberry Pi models are not supported.
+> This installer is designed and supported for **Raspberry Pi 5-class hardware**: Raspberry Pi 5, Raspberry Pi 500, and Compute Module 5. Earlier Raspberry Pi models are not supported.
 
 ---
 
@@ -79,8 +79,6 @@ This creates:
 ```
 
 If a custom installation directory is selected, these files are created in that location instead.
-
-At the end of a successful installation, the installer asks whether you want to **reboot now** or **reboot later** so that desktop integration, menu entries, icon caches, and launcher behavior can be fully initialized. Choosing reboot later confirms that the installation was successful and reminds you to reboot before using Stable Diffusion. After the Raspberry Pi restarts, launch Stable Diffusion normally using the installed launcher or `run_sd.sh`.
 
 ## 3. Running Stable Diffusion
 
@@ -186,7 +184,7 @@ The uninstaller asks for confirmation before removing:
 - GUI helper files
 - Desktop shortcut
 - Menu launcher
-- `/tmp/sd_gui.pid`
+- `<installation directory>/.sd-runtime/gui.pid`
 
 ## 8. Included files
 
@@ -199,12 +197,25 @@ Remote installations require only `setup_sd.sh`.
 
 ## 9. Notes
 
-- Designed for **Raspberry Pi 5 or newer**.
+- Designed for **Raspberry Pi 5-class hardware**: Raspberry Pi 5, Raspberry Pi 500, and Compute Module 5.
 - Compatible with **Raspbian, Debian, and Ubuntu (64-bit ARM)**.
 - CPU-only PyTorch is installed.
 - The installer validates Raspberry Pi 5-class hardware, ARM64 architecture, a Raspbian/Debian/Ubuntu operating system, available RAM, and free disk space before installation. It has been tested and confirmed working on Raspberry Pi OS 64-bit (ARM64/aarch64) on a Raspberry Pi 5.
 - Reinstallation is staged and restores the previous working WebUI and virtual environment if installation fails.
+- The replacement virtual environment is created directly at its final path after the previous installation is backed up, avoiding broken absolute paths caused by moving a completed virtual environment.
+- Included model downloads are verified against the SHA-256 object hash supplied by Hugging Face before they are activated.
 - System packages are installed without performing a full operating-system upgrade.
 - Running WebUI processes are stopped using the installation-specific PID and working directory rather than broad process matching.
+- Runtime PID files are stored in the installation-scoped `.sd-runtime` directory instead of shared filenames in `/tmp`.
 - The installer uses the known working AUTOMATIC1111 commit validated for this project.
 - Run LAN Mode once before using Offline Mode.
+
+## Bundle validation
+
+Run the included validation script from the project directory before publishing or installing:
+
+```bash
+./validate_bundle.sh
+```
+
+It checks the installer executable permission, Bash syntax, embedded GUI Python syntax, final-path virtual-environment logic, model hash verification, and installation-scoped runtime PID configuration.
