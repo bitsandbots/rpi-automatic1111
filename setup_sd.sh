@@ -7845,6 +7845,7 @@ RED = "#ff3048"
 TEAL = "#00a7b7"
 
 root = tk.Tk()
+root.withdraw()
 root.title("Stable Diffusion")
 root.configure(bg=BG)
 root.resizable(False, False)
@@ -8035,9 +8036,7 @@ def center_window():
 
 
 center_window()
-root.after_idle(center_window)
-root.after(250, center_window)
-root.after(750, center_window)
+root.deiconify()
 root.mainloop()
 EOF
 
