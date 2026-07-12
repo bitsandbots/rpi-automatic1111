@@ -3,7 +3,6 @@
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%205--Class%20%2F%20ARM-blue)
 ![CPU](https://img.shields.io/badge/acceleration-CPU--only-orange)
 ![ARM64](https://img.shields.io/badge/ARM64-aarch64-success)
-![License](https://img.shields.io/badge/license-MIT-informational)
 
 A streamlined, fully automated installer for **AUTOMATIC1111 Stable Diffusion WebUI** on **Raspberry Pi 5-class ARM-based systems** (Raspberry Pi 5, Raspberry Pi 500, and Compute Module 5).
 
@@ -12,6 +11,8 @@ This project is designed for CPU-only inference and provides an interactive inst
 > **Hardware Requirement**
 >
 > This installer is designed and supported for **Raspberry Pi 5-class hardware**: Raspberry Pi 5, Raspberry Pi 500, and Compute Module 5. Earlier Raspberry Pi models are not supported.
+>
+> A **64-bit ARM (aarch64)** operating system and at least **4 GiB of RAM** are required. The installation requires at least **15 GiB of free disk space** without the included model downloads, or **25 GiB** when the included models are downloaded.
 
 ---
 
@@ -125,11 +126,15 @@ Desktop shortcut (optional):
 ~/Desktop/StableDiffusionGUI.desktop
 ```
 
+When enabled, the **Stable Diffusion** launcher appears directly on the desktop.
+
 Menu launcher (optional):
 
 ```bash
 ~/.local/share/applications/sd-gui.desktop
 ```
+
+When enabled, open it from **Applications → Graphics → Stable Diffusion**.
 
 Both launchers use the installed icon:
 
@@ -192,6 +197,7 @@ The uninstaller asks for confirmation before removing:
 - `sd_gui_banner.png` — GUI banner artwork for local installs
 - `sd_icon.png` — Desktop and menu launcher icon
 - `README.md` — Project documentation
+- `validate_bundle.sh` — Pre-publication bundle validation script
 
 Remote installations require only `setup_sd.sh`.
 
