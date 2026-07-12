@@ -30,21 +30,9 @@ This project is designed for CPU-only inference and provides an interactive inst
 
 ## 1. Remote install
 
-Run the installer directly from GitHub using either command below.
-
-Using **curl**:
-
 ```bash
 curl -sSL https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/setup_sd.sh | bash
 ```
-
-Using **wget**:
-
-```bash
-wget -qO- https://raw.githubusercontent.com/comp6062/rpi-automatic1111/main/setup_sd.sh | bash
-```
-
-The installer is completely self-contained. The GUI banner is embedded inside `setup_sd.sh`, so no additional banner download is required during remote installation.
 
 ## 2. Interactive installer
 
@@ -225,11 +213,3 @@ Run the included validation script from the project directory before publishing 
 ```
 
 It checks the installer executable permission, Bash syntax, embedded GUI Python syntax, final-path virtual-environment logic, model hash verification, and installation-scoped runtime PID configuration.
-
-## Remote Installation
-
-Replace the example below with your GitHub raw URL:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/<YOUR_USERNAME>/<YOUR_REPOSITORY>/<YOUR_BRANCH>/setup_sd.sh)
-```
